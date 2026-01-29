@@ -88,18 +88,10 @@ export default function SubscriptionsPage() {
         try {
             let response;
 
-            if (newStatus === "Approved" && teacherId) {
-                response = await TeacherService.approveSubscription(
-                    teacherId,
-                    subscription.courseId,
-                    subscription.studentEmail
-                );
-            } else {
-                response = await TeacherService.updateSubscriptionStatus({
-                    id: subscription.courseSubscriptionId,
-                    status: newStatus,
-                });
-            }
+            response = await TeacherService.updateSubscriptionStatus({
+                id: subscription.courseSubscriptionId,
+                status: newStatus,
+            });
 
             if (response.succeeded) {
                 setToast({

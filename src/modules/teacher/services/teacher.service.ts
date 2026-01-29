@@ -834,8 +834,47 @@ export const TeacherService = {
     // Subscriptions
     getSubscriptions: async (teacherId: number): Promise<ApiResponse<CourseSubscription[]>> => {
         try {
-            const response = await apiClient.get<ApiResponse<CourseSubscription[]>>(`/course-subscriptions/teacher/${teacherId}`);
-            return response.data;
+            const response = await apiClient.get<any>(`/course-subscriptions/teacher/${teacherId}`);
+
+            let subscriptions: any[] = [];
+            if (response.data?.data && Array.isArray(response.data.data)) {
+                subscriptions = response.data.data;
+            } else if (Array.isArray(response.data)) {
+                subscriptions = response.data;
+            }
+
+            const normalized = subscriptions.map(s => ({
+                courseSubscriptionId: s.courseSubscriptionId || s.CourseSubscriptionId || s.id || s.Id,
+                studentId: s.studentId || s.StudentId,
+                studentName: s.studentName || s.StudentName,
+                studentEmail: s.studentEmail || s.StudentEmail || s.email || s.Email || s.student?.email || s.Student?.Email,
+                courseId: s.courseId || s.CourseId,
+                courseName: s.courseName || s.CourseName,
+                teacherName: s.teacherName || s.TeacherName,
+                educationStageId: s.educationStageId || s.EducationStageId,
+                educationStageName: s.educationStageName || s.EducationStageName,
+                status: s.status || s.Status,
+                createdAt: s.createdAt || s.CreatedAt,
+                lectures: (s.lectures || s.Lectures || []).map((l: any) => ({
+                    id: l.id || l.Id,
+                    title: l.title || l.Title,
+                    materials: (l.materials || l.Materials || []).map((m: any) => ({
+                        id: m.id || m.Id,
+                        type: m.type || m.Type,
+                        fileUrl: m.fileUrl || m.FileUrl,
+                        isFree: m.isFree === true || m.isFree === "true" || m.IsFree === true || m.IsFree === "true"
+                    }))
+                }))
+            }));
+
+            return {
+                statusCode: response.data?.statusCode || 200,
+                succeeded: response.data?.succeeded ?? true,
+                message: response.data?.message || "",
+                errors: null,
+                data: normalized,
+                meta: ""
+            };
         } catch (error: any) {
             // معالجة حالة 404 - لا يوجد اشتراكات
             if (error?.response?.status === 404) {
