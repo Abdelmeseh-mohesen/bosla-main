@@ -843,29 +843,44 @@ export const TeacherService = {
                 subscriptions = response.data;
             }
 
-            const normalized = subscriptions.map(s => ({
-                courseSubscriptionId: s.courseSubscriptionId || s.CourseSubscriptionId || s.id || s.Id,
-                studentId: s.studentId || s.StudentId,
-                studentName: s.studentName || s.StudentName,
-                studentEmail: s.studentEmail || s.StudentEmail || s.email || s.Email || s.student?.email || s.Student?.Email,
-                courseId: s.courseId || s.CourseId,
-                courseName: s.courseName || s.CourseName,
-                teacherName: s.teacherName || s.TeacherName,
-                educationStageId: s.educationStageId || s.EducationStageId,
-                educationStageName: s.educationStageName || s.EducationStageName,
-                status: s.status || s.Status,
-                createdAt: s.createdAt || s.CreatedAt,
-                lectures: (s.lectures || s.Lectures || []).map((l: any) => ({
-                    id: l.id || l.Id,
-                    title: l.title || l.Title,
-                    materials: (l.materials || l.Materials || []).map((m: any) => ({
-                        id: m.id || m.Id,
-                        type: m.type || m.Type,
-                        fileUrl: m.fileUrl || m.FileUrl,
-                        isFree: m.isFree === true || m.isFree === "true" || m.IsFree === true || m.IsFree === "true"
+            const normalized = subscriptions.map((s, index) => {
+                // Debug logging for subscription data normalization
+                if (index === 0) {
+                    console.log("Raw Subscription (First Item):", s);
+                    console.log("Student Email Candidates:", {
+                        simple: s.studentEmail,
+                        simpleUpper: s.StudentEmail,
+                        email: s.email,
+                        Email: s.Email,
+                        nested: s.student?.email,
+                        nestedUpper: s.Student?.Email
+                    });
+                }
+
+                return {
+                    courseSubscriptionId: s.courseSubscriptionId || s.CourseSubscriptionId || s.id || s.Id,
+                    studentId: s.studentId || s.StudentId,
+                    studentName: s.studentName || s.StudentName,
+                    studentEmail: s.studentEmail || s.StudentEmail || s.email || s.Email || s.student?.email || s.Student?.Email || "No Email",
+                    courseId: s.courseId || s.CourseId,
+                    courseName: s.courseName || s.CourseName,
+                    teacherName: s.teacherName || s.TeacherName,
+                    educationStageId: s.educationStageId || s.EducationStageId,
+                    educationStageName: s.educationStageName || s.EducationStageName,
+                    status: s.status || s.Status,
+                    createdAt: s.createdAt || s.CreatedAt,
+                    lectures: (s.lectures || s.Lectures || []).map((l: any) => ({
+                        id: l.id || l.Id,
+                        title: l.title || l.Title,
+                        materials: (l.materials || l.Materials || []).map((m: any) => ({
+                            id: m.id || m.Id,
+                            type: m.type || m.Type,
+                            fileUrl: m.fileUrl || m.FileUrl,
+                            isFree: m.isFree === true || m.isFree === "true" || m.IsFree === true || m.IsFree === "true"
+                        }))
                     }))
-                }))
-            }));
+                };
+            });
 
             return {
                 statusCode: response.data?.statusCode || 200,
@@ -908,6 +923,7 @@ export const TeacherService = {
     },
 
     approveSubscription: async (teacherId: number, courseId: number, studentEmail: string): Promise<ApiResponse<any>> => {
+        console.log("Excuting Manual Approval:", { teacherId, courseId, studentEmail });
         const response = await apiClient.post<ApiResponse<any>>(
             `/course-subscriptions/teacher/${teacherId}/course/${courseId}/students/${encodeURIComponent(studentEmail)}/approve`
         );

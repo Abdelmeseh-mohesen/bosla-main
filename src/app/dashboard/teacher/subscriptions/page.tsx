@@ -272,6 +272,7 @@ export default function SubscriptionsPage() {
                                         </div>
                                         <div className="text-right flex-1">
                                             <h4 className="text-xl font-black text-white mb-1">{subscription.studentName}</h4>
+                                            <p className="text-sm text-brand-red font-bold mb-2 flex justify-end">{subscription.studentEmail}</p>
                                             <p className="text-gray-400 font-bold flex items-center gap-2 justify-end mb-2">
                                                 <BookOpen size={16} />
                                                 {subscription.courseName}

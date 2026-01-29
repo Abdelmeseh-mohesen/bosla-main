@@ -1328,6 +1328,9 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
     const [savedQuestionId, setSavedQuestionId] = useState<number | null>(null);
     const [isSaved, setIsSaved] = useState(false);
 
+    // Track where to paste images
+    const [activeDropZone, setActiveDropZone] = useState<'question' | 'answer'>('question');
+
     // Auto-populate True/False options when answer type changes
     useEffect(() => {
         if (aType === "TrueFalse") {
@@ -1375,9 +1378,14 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                         e.preventDefault();
                         const pastedFile = items[i].getAsFile();
                         if (pastedFile) {
-                            setFile(pastedFile);
-                            setQType("Image"); // Auto-switch to Image Question
-                            showToast("تم لصق الصورة بنجاح! 📸", "success");
+                            if (activeDropZone === 'answer') {
+                                setCorrectAnswerFile(pastedFile);
+                                showToast("تم لصق صورة الإجابة! 📸", "success");
+                            } else {
+                                setFile(pastedFile);
+                                setQType("Image"); // Auto-switch to Image Question
+                                showToast("تم لصق صورة السؤال! 📸", "success");
+                            }
                         }
                         return; // Stop after finding an image
                     }
@@ -1387,7 +1395,7 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
 
         window.addEventListener("paste", handlePaste);
         return () => window.removeEventListener("paste", handlePaste);
-    }, []);
+    }, [activeDropZone]); // Re-bind when activeDropZone changes
 
     // Add new option
     const handleAddOption = () => {
@@ -1668,7 +1676,10 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                             />
                         </>
                     ) : (
-                        <div className="flex flex-col items-center justify-center min-h-[250px] bg-[#0d1117] rounded-2xl md:rounded-3xl border border-white/5 p-6 relative overflow-hidden group transition-all hover:border-white/10">
+                        <div
+                            onMouseEnter={() => setActiveDropZone('question')}
+                            className={`flex flex-col items-center justify-center min-h-[250px] bg-[#0d1117] rounded-2xl md:rounded-3xl border p-6 relative overflow-hidden group transition-all ${activeDropZone === 'question' ? 'border-brand-red/50 shadow-[0_0_15px_-5px_var(--brand-red)]' : 'border-white/5 hover:border-white/10'
+                                }`}>
                             {previewUrl ? (
                                 <div className="w-full relative z-10 flex flex-col gap-3">
                                     <div className="flex justify-between items-center px-1">
@@ -1709,8 +1720,9 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                                         <p className="text-white font-black text-xl">اسحب وأفلت الصورة هنا</p>
                                         <p className="text-gray-500 font-bold text-sm">أو اضغط بالأسفل لرفع ملف</p>
                                         <div className="pt-2">
-                                            <span className="text-brand-red/60 text-xs font-bold px-3 py-1 rounded-full bg-brand-red/5 border border-brand-red/10 dir-ltr font-mono">
-                                                Ctrl + V to Paste
+                                            <span className={`text-xs font-bold px-3 py-1 rounded-full border dir-ltr font-mono ${activeDropZone === 'question' ? 'text-brand-red bg-brand-red/10 border-brand-red/20' : 'text-brand-red/60 bg-brand-red/5 border-brand-red/10'
+                                                }`}>
+                                                {activeDropZone === 'question' ? 'Ready to Paste (Ctrl + V)' : 'Ctrl + V to Paste'}
                                             </span>
                                         </div>
                                     </div>
@@ -1908,7 +1920,10 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                             صورة الإجابة الصحيحة
                             <span className="text-xs text-gray-500 font-normal">(اختياري)</span>
                         </Label>
-                        <label className="flex items-center justify-center w-full h-20 rounded-2xl border-2 border-dashed border-green-500/20 bg-green-500/5 hover:bg-green-500/10 cursor-pointer transition-all">
+                        <label
+                            onMouseEnter={() => setActiveDropZone('answer')}
+                            className={`flex flex-col items-center justify-center w-full h-24 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${activeDropZone === 'answer' ? 'border-green-500/60 bg-green-500/10 shadow-[0_0_15px_-5px_#22c55e]' : 'border-green-500/20 bg-green-500/5 hover:bg-green-500/10'
+                                }`}>
                             {correctAnswerFile ? (
                                 <div className="flex items-center gap-3 text-green-500 font-bold">
                                     <ImageIcon size={18} />
@@ -1916,9 +1931,15 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                                     <X className="hover:text-white" size={16} onClick={(e) => { e.preventDefault(); setCorrectAnswerFile(null); }} />
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-3 text-green-500/60">
-                                    <Upload size={18} />
-                                    <span className="text-xs font-bold">صورة توضح الإجابة</span>
+                                <div className="flex flex-col items-center gap-1.5 text-green-500/60">
+                                    <div className="flex items-center gap-2">
+                                        <Upload size={18} />
+                                        <span className="text-xs font-bold">صورة توضح الإجابة</span>
+                                    </div>
+                                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${activeDropZone === 'answer' ? 'bg-green-500/20 border-green-500/30 text-green-500' : 'bg-green-500/5 border-green-500/10'
+                                        }`}>
+                                        {activeDropZone === 'answer' ? 'Ready to Paste' : 'Ctrl + V'}
+                                    </span>
                                 </div>
                             )}
                             <input type="file" className="hidden" accept="image/*" onChange={(e) => setCorrectAnswerFile(e.target.files?.[0] || null)} />

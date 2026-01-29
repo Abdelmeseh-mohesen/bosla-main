@@ -117,8 +117,8 @@ export function SubscriptionsManager({ subscriptions, onStatusChange }: Subscrip
                         key={status}
                         onClick={() => setFilter(status)}
                         className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${filter === status
-                                ? 'bg-brand-red text-white'
-                                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                            ? 'bg-brand-red text-white'
+                            : 'bg-white/5 text-gray-400 hover:bg-white/10'
                             }`}
                     >
                         {status === "All" && "الكل"}
@@ -150,6 +150,7 @@ export function SubscriptionsManager({ subscriptions, onStatusChange }: Subscrip
                                     </div>
                                     <div className="text-right">
                                         <h4 className="font-black text-white">{subscription.studentName}</h4>
+                                        <p className="text-xs text-brand-red/80 font-bold -mt-0.5 mb-1 text-right">{subscription.studentEmail}</p>
                                         <p className="text-sm text-gray-500 font-medium flex items-center gap-2 justify-end">
                                             <BookOpen size={14} />
                                             {subscription.courseName}
