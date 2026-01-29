@@ -1481,7 +1481,7 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                     examId,
                     questionType: qType,
                     content: qType === "Text" ? content : "Image Question",
-                    answerType: aType,
+                    answerType: aType === "Image" ? "ImageAnswer" : aType,
                     score,
                     correctByAssistant: correctByAssistant,
                     file: qType === "Image" && file ? file : undefined,
