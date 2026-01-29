@@ -172,101 +172,121 @@ export function LectureList({ courseId, onAddMaterial, onViewMaterial, onEditMat
                         {/* Lecture Header */}
                         <div
                             onClick={() => toggleLecture(lecture.id)}
-                            className="p-6 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                            className="p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between cursor-pointer hover:bg-white/5 transition-colors gap-4"
                         >
-                            <div className="flex items-center gap-4">
-                                <div className={cn(
-                                    "p-2 rounded-full transition-transform duration-300",
-                                    openLectures.includes(lecture.id) ? "rotate-180 text-brand-red bg-brand-red/10" : "text-gray-500 bg-white/5"
-                                )}>
-                                    <ChevronDown size={24} />
+                            <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
+                                <div className="flex items-center gap-4">
+                                    <div className={cn(
+                                        "p-2 rounded-full transition-transform duration-300",
+                                        openLectures.includes(lecture.id) ? "rotate-180 text-brand-red bg-brand-red/10" : "text-gray-500 bg-white/5"
+                                    )}>
+                                        <ChevronDown size={20} className="md:w-6 md:h-6" />
+                                    </div>
+                                    <h3 className="text-lg md:text-xl font-bold text-white text-right">{lecture.title}</h3>
                                 </div>
-                                <h3 className="text-xl font-bold text-white text-right">{lecture.title}</h3>
-                                {/* Visibility Badge */}
+
+                                {/* Visibility Badge - Mobile only */}
                                 <span className={cn(
-                                    "px-3 py-1 rounded-full text-xs font-bold transition-all duration-300",
+                                    "px-2 py-0.5 rounded-full text-[10px] font-bold md:hidden",
                                     isVisible
                                         ? "bg-green-500/10 text-green-500"
                                         : "bg-yellow-500/10 text-yellow-500"
                                 )}>
-                                    {isVisible ? "ظاهرة للطلاب" : "مخفية"}
+                                    {isVisible ? "ط" : "م"}
                                 </span>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                {/* Visibility Toggle Button - Hidden for Assistants */}
-                                {!isAssistant && (
-                                    <Button
-                                        variant="ghost"
-                                        className={cn(
-                                            "h-10 w-10 p-0 rounded-xl transition-all duration-300",
-                                            isVisible
-                                                ? "text-green-500 hover:text-yellow-500 hover:bg-yellow-500/10"
-                                                : "text-yellow-500 hover:text-green-500 hover:bg-green-500/10"
-                                        )}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleToggleVisibility(lecture);
-                                        }}
-                                        disabled={visibilityMutation.isPending}
-                                        title={isVisible ? "إخفاء المحاضرة" : "إظهار المحاضرة"}
-                                    >
-                                        {isVisible ? <Eye size={20} /> : <EyeOff size={20} />}
-                                    </Button>
-                                )}
-                                {/* Edit Lecture Button - Hidden for Assistants */}
-                                {!isAssistant && onEditLecture && (
-                                    <Button
-                                        variant="ghost"
-                                        className="h-10 w-10 p-0 rounded-xl text-blue-400 hover:text-blue-500 hover:bg-blue-500/10"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEditLecture(lecture);
-                                        }}
-                                        title="تعديل المحاضرة"
-                                    >
-                                        <Edit size={20} />
-                                    </Button>
-                                )}
-                                {/* Delete Lecture Button - Hidden for Assistants */}
-                                {!isAssistant && (
-                                    <Button
-                                        variant="ghost"
-                                        className="h-10 w-10 p-0 rounded-xl text-gray-400 hover:text-brand-red hover:bg-brand-red/10"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDelete(lecture.id);
-                                        }}
-                                    >
-                                        <Trash2 size={20} />
-                                    </Button>
-                                )}
-                                {/* Exam Button - Shown for both Teachers and Assistants */}
-                                <Button
-                                    variant="outline"
-                                    className="rounded-xl border-white/10 h-10 px-4 font-bold gap-2 hover:bg-brand-red/10 border-brand-red/20 text-brand-red"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onManageExam(lecture.id, lecture.title);
-                                    }}
-                                >
-                                    <ClipboardList size={18} />
-                                    الامتحان
-                                </Button>
-                                {/* Add Material Button - Hidden for Assistants */}
-                                {!isAssistant && (
+                            <div className="flex items-center justify-between md:justify-end gap-2 w-full md:w-auto pl-2 md:pl-0 border-t border-white/5 pt-3 md:border-0 md:pt-0">
+                                <div className="flex items-center gap-1 md:gap-2">
+                                    {/* Visibility Badge - Desktop only */}
+                                    <span className={cn(
+                                        "hidden md:inline-block px-3 py-1 rounded-full text-xs font-bold transition-all duration-300 ml-2",
+                                        isVisible
+                                            ? "bg-green-500/10 text-green-500"
+                                            : "bg-yellow-500/10 text-yellow-500"
+                                    )}>
+                                        {isVisible ? "ظاهرة للطلاب" : "مخفية"}
+                                    </span>
+
+                                    {/* Visibility Toggle Button - Hidden for Assistants */}
+                                    {!isAssistant && (
+                                        <Button
+                                            variant="ghost"
+                                            className={cn(
+                                                "h-10 w-10 p-0 rounded-xl transition-all duration-300",
+                                                isVisible
+                                                    ? "text-green-500 hover:text-yellow-500 hover:bg-yellow-500/10"
+                                                    : "text-yellow-500 hover:text-green-500 hover:bg-green-500/10"
+                                            )}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleVisibility(lecture);
+                                            }}
+                                            disabled={visibilityMutation.isPending}
+                                            title={isVisible ? "إخفاء المحاضرة" : "إظهار المحاضرة"}
+                                        >
+                                            {isVisible ? <Eye size={20} /> : <EyeOff size={20} />}
+                                        </Button>
+                                    )}
+                                    {/* Edit Lecture Button - Hidden for Assistants */}
+                                    {!isAssistant && onEditLecture && (
+                                        <Button
+                                            variant="ghost"
+                                            className="h-10 w-10 p-0 rounded-xl text-blue-400 hover:text-blue-500 hover:bg-blue-500/10"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEditLecture(lecture);
+                                            }}
+                                            title="تعديل المحاضرة"
+                                        >
+                                            <Edit size={20} />
+                                        </Button>
+                                    )}
+                                    {/* Delete Lecture Button - Hidden for Assistants */}
+                                    {!isAssistant && (
+                                        <Button
+                                            variant="ghost"
+                                            className="h-10 w-10 p-0 rounded-xl text-gray-400 hover:text-brand-red hover:bg-brand-red/10"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDelete(lecture.id);
+                                            }}
+                                        >
+                                            <Trash2 size={20} />
+                                        </Button>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-2 border-r border-white/5 pr-2 md:pr-0 md:border-0">
+                                    {/* Exam Button - Shown for both Teachers and Assistants */}
                                     <Button
                                         variant="outline"
-                                        className="rounded-xl border-white/10 h-10 px-4 font-bold gap-2"
+                                        className="rounded-xl border-white/10 h-10 w-10 md:w-auto p-0 md:px-4 font-bold gap-2 hover:bg-brand-red/10 border-brand-red/20 text-brand-red shrink-0"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onAddMaterial(lecture.id);
+                                            onManageExam(lecture.id, lecture.title);
                                         }}
+                                        title="الامتحان"
                                     >
-                                        <Plus size={18} />
-                                        إضافة مادة
+                                        <ClipboardList size={18} />
+                                        <span className="hidden md:inline">الامتحان</span>
                                     </Button>
-                                )}
+                                    {/* Add Material Button - Hidden for Assistants */}
+                                    {!isAssistant && (
+                                        <Button
+                                            variant="outline"
+                                            className="rounded-xl border-white/10 h-10 w-10 md:w-auto p-0 md:px-4 font-bold gap-2 shrink-0"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onAddMaterial(lecture.id);
+                                            }}
+                                            title="إضافة مادة"
+                                        >
+                                            <Plus size={18} />
+                                            <span className="hidden md:inline">إضافة مادة</span>
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -330,9 +350,9 @@ function MaterialList({ lectureId, onViewMaterial, onEditMaterial, isAssistant }
             {materials.map((material) => (
                 <div
                     key={material.id}
-                    className="flex flex-col md:flex-row items-center justify-between p-5 bg-[#0d1117]/50 rounded-[1.5rem] border border-white/5 hover:border-brand-red/30 transition-all group gap-4"
+                    className="flex flex-col md:flex-row items-center justify-between p-4 md:p-5 bg-[#0d1117]/50 rounded-[1.5rem] border border-white/5 hover:border-brand-red/30 transition-all group gap-4"
                 >
-                    <div className="flex items-center gap-2 w-full md:w-auto">
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 w-full md:w-auto order-2 md:order-1 border-t border-white/5 pt-3 md:border-0 md:pt-0">
                         <Button
                             variant="ghost"
                             onClick={() => onViewMaterial(material)}
@@ -371,18 +391,18 @@ function MaterialList({ lectureId, onViewMaterial, onEditMaterial, isAssistant }
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4 text-right w-full md:w-auto justify-end">
-                        <div className="text-right">
+                    <div className="flex items-center gap-4 text-right w-full md:w-auto justify-between md:justify-end order-1 md:order-2">
+                        <div className="text-right flex-1">
                             <p className="text-white font-bold text-lg">{material.title}</p>
                             <p className="text-xs text-gray-500 font-medium">
                                 {material.type === "video" ? "فيديو تعليمي" : material.type === "pdf" ? "ملف PDF" : "واجب منزلي"}
                             </p>
                         </div>
                         <div className={cn(
-                            "p-4 rounded-2xl",
+                            "p-3 md:p-4 rounded-2xl shrink-0",
                             material.type === "video" ? "bg-brand-red/10 text-brand-red" : material.type === "pdf" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500"
                         )}>
-                            {material.type === "video" ? <Video size={28} /> : material.type === "pdf" ? <FileText size={28} /> : <Upload size={28} />}
+                            {material.type === "video" ? <Video size={24} className="md:w-7 md:h-7" /> : material.type === "pdf" ? <FileText size={24} className="md:w-7 md:h-7" /> : <Upload size={24} className="md:w-7 md:h-7" />}
                         </div>
                     </div>
                 </div>
