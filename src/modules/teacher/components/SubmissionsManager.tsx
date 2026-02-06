@@ -35,9 +35,9 @@ export function SubmissionsManager({ lectureId, examId, lectureName, onBack }: S
         setTimeout(() => setNotification(null), 3000);
     };
 
-    // Query: Fetch all submissions
+    // Query: Fetch all submissions for this lecture
     const { data: submissionsResponse, isLoading: isLoadingSubmissions } = useQuery({
-        queryKey: ["examSubmissions", lectureId],
+        queryKey: ["examSubmissions", lectureId, examId],
         queryFn: () => TeacherService.getExamSubmissions(lectureId)
     });
 
@@ -52,15 +52,20 @@ export function SubmissionsManager({ lectureId, examId, lectureName, onBack }: S
     const gradeMutation = useMutation({
         mutationFn: TeacherService.gradeExam,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["examSubmissions", lectureId] });
+            queryClient.invalidateQueries({ queryKey: ["examSubmissions", lectureId, examId] });
             showToast("تم حفظ التصحيح بنجاح");
             setSelectedStudent(null);
         },
         onError: () => showToast("فشل حفظ التصحيح", "error")
     });
 
-    const submissions = submissionsResponse?.data || [];
-    const filteredSubmissions = submissions.filter(s =>
+    // Get all submissions and filter by current examId
+    const allSubmissions = submissionsResponse?.data || [];
+    // فلترة النتائج حسب الامتحان المحدد فقط
+    const examSubmissions = allSubmissions.filter(s => s.examId === examId);
+
+    // ثم فلترة حسب البحث
+    const filteredSubmissions = examSubmissions.filter(s =>
         s.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.studentEmail.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -110,7 +115,7 @@ export function SubmissionsManager({ lectureId, examId, lectureName, onBack }: S
                 <div className="flex items-center gap-2">
                     <div className="px-4 h-11 bg-white/5 border border-white/10 rounded-xl flex items-center gap-2">
                         <History size={16} className="text-brand-red" />
-                        <span className="text-white font-black text-xs">{submissions.length} تسليماً</span>
+                        <span className="text-white font-black text-xs">{examSubmissions.length} تسليماً</span>
                     </div>
                     <Button
                         variant="outline"

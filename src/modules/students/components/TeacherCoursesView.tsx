@@ -17,6 +17,18 @@ interface TeacherCoursesViewProps {
 }
 
 export function TeacherCoursesView({ teacher, stageId, stageName, onBack, onSelectCourse }: TeacherCoursesViewProps) {
+    // Debug: Log teacher data
+    console.log("=== TeacherCoursesView Debug ===");
+    console.log("Teacher:", teacher);
+    console.log("Stage ID:", stageId);
+    console.log("Courses count:", teacher.courses?.length);
+    const filteredCourses = teacher.courses?.filter(c => c.educationStageId === stageId) || [];
+    console.log("Filtered Courses (for this stage):", filteredCourses);
+    if (filteredCourses[0]) {
+        console.log("First Filtered Course:", filteredCourses[0]);
+        console.log("First Filtered Course Lectures:", filteredCourses[0].lectures);
+    }
+
     const { userId, studentId: authStudentId } = useStudentAuth();
     const [subscribingCourseId, setSubscribingCourseId] = useState<number | null>(null);
     const [subscribedCourses, setSubscribedCourses] = useState<number[]>([]);
@@ -249,7 +261,7 @@ export function TeacherCoursesView({ teacher, stageId, stageName, onBack, onSele
                                             {course.title}
                                         </h4>
                                         <p className="text-gray-500 text-sm font-bold mt-1">
-                                            {course.lectures.length} محاضرة
+                                            {course.lectures.filter((l: any) => l.isVisible !== false).length} محاضرة
                                         </p>
                                     </div>
 
@@ -273,40 +285,35 @@ export function TeacherCoursesView({ teacher, stageId, stageName, onBack, onSele
                                     <div className="flex gap-2">
                                         <Button
                                             onClick={() => {
-                                                // إذا كان الطالب مشترك، استخدم المحاضرات من endpoint الـ subscriptions (الكاملة)
-                                                if (isSubscribed) {
-                                                    const subscription = subscriptionsData.find((sub: any) => sub.courseId === course.id);
-                                                    if (subscription && subscription.lectures) {
-                                                        // إنشاء كورس جديد مع المحاضرات الكاملة من الـ subscription
-                                                        const courseWithFullLectures = {
-                                                            ...course,
-                                                            lectures: subscription.lectures,
-                                                            subscriptionStatus: 'Approved' as const, // حالة الاشتراك موافق عليها
-                                                            isSubscribed: true
-                                                        };
-                                                        onSelectCourse(courseWithFullLectures);
-                                                        return;
-                                                    }
-                                                }
+                                                // الـ lectures موجودة دايماً من endpoint /subjects/{id}/teachers
+                                                // نمرر الـ course مع حالة الاشتراك للـ CoursePlayer
+                                                // الـ CoursePlayer هيفلتر المحتوى حسب isFree أو subscriptionStatus
 
-                                                // إذا كان Pending، مرر الكورس بدون subscriptionStatus
-                                                if (isPending) {
+                                                if (isSubscribed) {
+                                                    // الطالب مشترك - وصول كامل لكل المحتوى
+                                                    const courseWithStatus = {
+                                                        ...course,
+                                                        subscriptionStatus: 'Approved' as const,
+                                                        isSubscribed: true
+                                                    };
+                                                    onSelectCourse(courseWithStatus);
+                                                } else if (isPending) {
+                                                    // طلب قيد المراجعة - يشوف المحتوى المجاني فقط
                                                     const courseWithStatus = {
                                                         ...course,
                                                         subscriptionStatus: 'Pending' as const,
                                                         isSubscribed: false
                                                     };
                                                     onSelectCourse(courseWithStatus);
-                                                    return;
+                                                } else {
+                                                    // غير مشترك - يشوف المحتوى المجاني فقط
+                                                    const courseWithStatus = {
+                                                        ...course,
+                                                        subscriptionStatus: null,
+                                                        isSubscribed: false
+                                                    };
+                                                    onSelectCourse(courseWithStatus);
                                                 }
-
-                                                // إذا لم يكن مشترك، مرر الكورس بدون اشتراك
-                                                const courseWithStatus = {
-                                                    ...course,
-                                                    subscriptionStatus: null,
-                                                    isSubscribed: false
-                                                };
-                                                onSelectCourse(courseWithStatus);
                                             }}
                                             variant="outline"
                                             className="flex-1 h-11 rounded-xl border-white/10 hover:bg-white/5 hover:border-white/20 text-white font-bold text-sm"

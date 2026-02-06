@@ -34,8 +34,13 @@ export function SubscriptionsManager({ subscriptions, onStatusChange }: Subscrip
                 status: newStatus,
             });
             if (response.succeeded) {
+                const statusMessages: Record<SubscriptionStatus, string> = {
+                    "Approved": "تم قبول الاشتراك ✓",
+                    "Rejected": "تم رفض الاشتراك",
+                    "Pending": "تم إعادة الاشتراك لقيد الانتظار"
+                };
                 setToast({
-                    message: newStatus === "Approved" ? "تم قبول الاشتراك ✓" : "تم رفض الاشتراك",
+                    message: statusMessages[newStatus],
                     type: 'success'
                 });
                 onStatusChange();
@@ -150,7 +155,11 @@ export function SubscriptionsManager({ subscriptions, onStatusChange }: Subscrip
                                     </div>
                                     <div className="text-right">
                                         <h4 className="font-black text-white">{subscription.studentName}</h4>
-                                        <p className="text-xs text-brand-red/80 font-bold -mt-0.5 mb-1 text-right">{subscription.studentEmail}</p>
+                                        {subscription.studentEmail && subscription.studentEmail !== "No Email" && (
+                                            <p className="text-xs font-bold text-brand-red/80 -mt-0.5 mb-1 text-right">
+                                                {subscription.studentEmail}
+                                            </p>
+                                        )}
                                         <p className="text-sm text-gray-500 font-medium flex items-center gap-2 justify-end">
                                             <BookOpen size={14} />
                                             {subscription.courseName}
@@ -159,36 +168,46 @@ export function SubscriptionsManager({ subscriptions, onStatusChange }: Subscrip
                                 </div>
 
                                 {/* Status & Actions */}
-                                <div className="flex items-center gap-3 flex-wrap justify-end">
+                                <div className="flex flex-col items-end gap-2">
                                     {getStatusBadge(subscription.status)}
 
-                                    {subscription.status === "Pending" && (
-                                        <div className="flex gap-2">
-                                            <Button
-                                                onClick={() => handleStatusChange(subscription.courseSubscriptionId, "Approved")}
-                                                disabled={updatingId === subscription.courseSubscriptionId}
-                                                className="h-9 px-4 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold text-sm"
-                                            >
-                                                {updatingId === subscription.courseSubscriptionId ? (
-                                                    <Loader2 size={14} className="animate-spin" />
-                                                ) : (
-                                                    <>
-                                                        <Check size={14} className="ml-1" />
-                                                        قبول
-                                                    </>
-                                                )}
-                                            </Button>
-                                            <Button
-                                                onClick={() => handleStatusChange(subscription.courseSubscriptionId, "Rejected")}
-                                                disabled={updatingId === subscription.courseSubscriptionId}
-                                                variant="outline"
-                                                className="h-9 px-4 rounded-xl border-red-500/20 text-red-500 hover:bg-red-500/10 font-bold text-sm"
-                                            >
-                                                <X size={14} className="ml-1" />
-                                                رفض
-                                            </Button>
-                                        </div>
-                                    )}
+                                    {/* Action buttons - تغيير الحالة */}
+                                    <div className="flex gap-2 mt-2">
+                                        <Button
+                                            onClick={() => handleStatusChange(subscription.courseSubscriptionId, "Approved")}
+                                            disabled={updatingId === subscription.courseSubscriptionId || subscription.status === "Approved"}
+                                            className={`h-8 px-4 rounded-lg font-bold text-xs transition-all ${subscription.status === "Approved"
+                                                ? "bg-green-500/20 text-green-500/50 cursor-not-allowed"
+                                                : "bg-green-500 hover:bg-green-600 text-white"
+                                                }`}
+                                        >
+                                            {updatingId === subscription.courseSubscriptionId ? (
+                                                <Loader2 size={12} className="animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <Check size={12} className="ml-1" />
+                                                    قبول
+                                                </>
+                                            )}
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleStatusChange(subscription.courseSubscriptionId, "Rejected")}
+                                            disabled={updatingId === subscription.courseSubscriptionId || subscription.status === "Rejected"}
+                                            className={`h-8 px-4 rounded-lg font-bold text-xs transition-all ${subscription.status === "Rejected"
+                                                ? "bg-red-500/20 text-red-500/50 cursor-not-allowed"
+                                                : "bg-red-500 hover:bg-red-600 text-white"
+                                                }`}
+                                        >
+                                            {updatingId === subscription.courseSubscriptionId ? (
+                                                <Loader2 size={12} className="animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <X size={12} className="ml-1" />
+                                                    رفض
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
 

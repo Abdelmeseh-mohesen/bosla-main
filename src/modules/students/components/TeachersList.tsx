@@ -31,6 +31,21 @@ export function TeachersList({ subjectId, subjectName, onBack, onSelectTeacher }
 
     const teachers = subjectData?.teachers || [];
 
+    // Debug: Log the full response from /subjects/{id}/teachers
+    console.log("=== TeachersList Debug ===");
+    console.log("Subject Data:", subjectData);
+    console.log("Teachers count:", teachers.length);
+    if (teachers[0]) {
+        console.log("First Teacher:", teachers[0]);
+        console.log("First Teacher Courses:", teachers[0].courses);
+        if (teachers[0].courses?.[0]) {
+            console.log("First Course Lectures:", teachers[0].courses[0].lectures);
+            if (teachers[0].courses[0].lectures?.[0]) {
+                console.log("First Lecture Materials:", teachers[0].courses[0].lectures[0].materials);
+            }
+        }
+    }
+
     return (
         <div className="space-y-12 animate-in fade-in duration-700">
             {/* Nav Header */}

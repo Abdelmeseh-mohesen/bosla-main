@@ -30,8 +30,8 @@ export const StudentService = {
                     teacher.courses.forEach((course) => {
                         course.courseImageUrl = normalizeUrl(course.courseImageUrl);
                         if (course.lectures) {
-                            course.lectures.forEach((lecture) => {
-                                // lecture is typed as any in TeacherCourse currently
+                            course.lectures.forEach((lecture: any) => {
+                                // lecture is typed as any because API may return additional fields
                                 if (lecture.videoUrl) lecture.videoUrl = normalizeUrl(lecture.videoUrl);
                                 if (lecture.materials) {
                                     lecture.materials.forEach((material: any) => {

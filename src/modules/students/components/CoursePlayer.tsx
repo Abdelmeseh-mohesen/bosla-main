@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { TeacherCourse } from "../types/student.types";
+import { TeacherCourse, Lecture, LectureMaterial } from "../types/student.types";
 import {
     ArrowLeft,
     Play,
@@ -31,7 +31,18 @@ interface CoursePlayerProps {
 }
 
 export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: CoursePlayerProps) {
-    const [expandedLecture, setExpandedLecture] = useState<number | null>(course.lectures[0]?.id || null);
+    // Debug logs
+    console.log("=== CoursePlayer Debug ===");
+    console.log("Course:", course);
+    console.log("Lectures count:", course.lectures?.length);
+    console.log("Subscription Status:", course.subscriptionStatus);
+    if (course.lectures?.[0]) {
+        console.log("First Lecture:", course.lectures[0]);
+        console.log("First Lecture Materials:", course.lectures[0].materials);
+    }
+
+    const visibleLectures = course.lectures?.filter((l: Lecture) => l.isVisible !== false) || [];
+    const [expandedLecture, setExpandedLecture] = useState<number | null>(visibleLectures[0]?.id || null);
     const [activeContent, setActiveContent] = useState<{ type: 'video' | 'pdf', url: string, title: string } | null>(null);
 
     // Player State
@@ -221,7 +232,8 @@ export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: 
                         </div>
 
                         <div className="divide-y divide-white/5 max-h-[600px] overflow-y-auto custom-scrollbar">
-                            {course.lectures.map((lecture, index) => (
+                            {/* فلترة المحاضرات المرئية فقط للطلاب */}
+                            {course.lectures.filter((l: Lecture) => l.isVisible !== false).map((lecture, index) => (
                                 <div key={lecture.id} className="group">
                                     <button
                                         onClick={() => setExpandedLecture(expandedLecture === lecture.id ? null : lecture.id)}
@@ -250,33 +262,37 @@ export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: 
                                             */}
                                             {(() => {
                                                 const isApproved = course.subscriptionStatus === 'Approved';
-                                                const lectureVideoUrl = (lecture as any).videoUrl;
-                                                const lectureIsFree = (lecture as any).isFree;
 
-                                                // Video Button - عرض فقط إذا Approved أو isFree
-                                                const canViewVideo = isApproved || lectureIsFree;
+                                                // تصنيف المواد حسب النوع
+                                                const videos = lecture.materials?.filter((m: LectureMaterial) => m.type === 'video') || [];
+                                                const pdfs = lecture.materials?.filter((m: LectureMaterial) => m.type === 'pdf') || [];
+                                                const homeworks = lecture.materials?.filter((m: LectureMaterial) => m.type === 'homework') || [];
+                                                const hasContent = videos.length > 0 || pdfs.length > 0 || homeworks.length > 0;
 
                                                 return (
                                                     <>
-                                                        {lectureVideoUrl && (
-                                                            canViewVideo ? (
+                                                        {/* Videos - عرض الفيديوهات */}
+                                                        {videos.map((material: LectureMaterial) => {
+                                                            const canView = isApproved || material.isFree;
+                                                            return canView ? (
                                                                 <button
+                                                                    key={material.id}
                                                                     onClick={() => {
-                                                                        setActiveContent({ type: 'video', url: lectureVideoUrl, title: lecture.title });
+                                                                        setActiveContent({ type: 'video', url: material.fileUrl, title: material.title });
                                                                         setPlaying(true);
                                                                     }}
                                                                     className="w-full flex items-center justify-between p-3 rounded-xl bg-brand-red/10 hover:bg-brand-red/20 transition-colors border border-brand-red/20 group/video"
                                                                 >
                                                                     <Play size={14} className="text-brand-red" />
-                                                                    <span className="text-xs font-bold text-white">مشاهدة الفيديو</span>
+                                                                    <span className="text-xs font-bold text-white">{material.title}</span>
                                                                 </button>
                                                             ) : (
-                                                                <div className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-800/30 border border-gray-700/30 opacity-60">
+                                                                <div key={material.id} className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-800/30 border border-gray-700/30 opacity-60">
                                                                     <Lock size={14} className="text-gray-500" />
-                                                                    <span className="text-xs font-bold text-gray-400">الفيديو مقفل - اشترك للمشاهدة</span>
+                                                                    <span className="text-xs font-bold text-gray-400">{material.title} (مقفل)</span>
                                                                 </div>
-                                                            )
-                                                        )}
+                                                            );
+                                                        })}
 
                                                         {/* Exam Button - دائماً متاح */}
                                                         <button
@@ -287,43 +303,64 @@ export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: 
                                                             <span className="text-xs font-bold text-white">دخول الامتحان</span>
                                                         </button>
 
-                                                        {/* Materials - فلترة حسب isFree */}
-                                                        {lecture.materials && lecture.materials.length > 0 ? (
-                                                            lecture.materials.map((material: any) => {
-                                                                const canViewMaterial = isApproved || material.isFree;
-
-                                                                return canViewMaterial ? (
-                                                                    <button
-                                                                        key={material.id}
-                                                                        onClick={() => setActiveContent({ type: 'pdf', url: material.fileUrl, title: material.title })}
-                                                                        className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 group/link"
-                                                                    >
-                                                                        <ExternalLink size={14} className="text-gray-500 group-hover/link:text-brand-red" />
-                                                                        <div className="flex items-center gap-3">
-                                                                            <span className="text-xs font-bold text-gray-300">{material.title}</span>
-                                                                            <FileText size={16} className="text-brand-red" />
-                                                                        </div>
-                                                                    </button>
-                                                                ) : (
-                                                                    <div
-                                                                        key={material.id}
-                                                                        className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-800/30 border border-gray-700/30 opacity-60"
-                                                                    >
-                                                                        <Lock size={14} className="text-gray-500" />
-                                                                        <div className="flex items-center gap-3">
-                                                                            <span className="text-xs font-bold text-gray-400">{material.title} (مقفل)</span>
-                                                                            <FileText size={16} className="text-gray-500" />
-                                                                        </div>
+                                                        {/* PDFs - ملفات PDF */}
+                                                        {pdfs.map((material: LectureMaterial) => {
+                                                            const canView = isApproved || material.isFree;
+                                                            return canView ? (
+                                                                <button
+                                                                    key={material.id}
+                                                                    onClick={() => setActiveContent({ type: 'pdf', url: material.fileUrl, title: material.title })}
+                                                                    className="w-full flex items-center justify-between p-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 transition-colors border border-blue-500/20 group/pdf"
+                                                                >
+                                                                    <ExternalLink size={14} className="text-blue-400 group-hover/pdf:text-blue-300" />
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="text-xs font-bold text-gray-300">{material.title}</span>
+                                                                        <FileText size={16} className="text-blue-400" />
                                                                     </div>
-                                                                );
-                                                            })
-                                                        ) : (
-                                                            !lectureVideoUrl && (
-                                                                <div className="flex items-center justify-end gap-2 p-3 text-gray-600 grayscale">
-                                                                    <span className="text-xs font-bold">لا توجد محتويات حالياً</span>
-                                                                    <Lock size={14} />
+                                                                </button>
+                                                            ) : (
+                                                                <div key={material.id} className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-800/30 border border-gray-700/30 opacity-60">
+                                                                    <Lock size={14} className="text-gray-500" />
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="text-xs font-bold text-gray-400">{material.title} (مقفل)</span>
+                                                                        <FileText size={16} className="text-gray-500" />
+                                                                    </div>
                                                                 </div>
-                                                            )
+                                                            );
+                                                        })}
+
+                                                        {/* Homeworks - الواجبات */}
+                                                        {homeworks.map((material: LectureMaterial) => {
+                                                            const canView = isApproved || material.isFree;
+                                                            return canView ? (
+                                                                <button
+                                                                    key={material.id}
+                                                                    onClick={() => setActiveContent({ type: 'pdf', url: material.fileUrl, title: material.title })}
+                                                                    className="w-full flex items-center justify-between p-3 rounded-xl bg-green-500/10 hover:bg-green-500/20 transition-colors border border-green-500/20 group/hw"
+                                                                >
+                                                                    <ExternalLink size={14} className="text-green-400 group-hover/hw:text-green-300" />
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="text-xs font-bold text-gray-300">{material.title}</span>
+                                                                        <FileText size={16} className="text-green-400" />
+                                                                    </div>
+                                                                </button>
+                                                            ) : (
+                                                                <div key={material.id} className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-800/30 border border-gray-700/30 opacity-60">
+                                                                    <Lock size={14} className="text-gray-500" />
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="text-xs font-bold text-gray-400">{material.title} (مقفل)</span>
+                                                                        <FileText size={16} className="text-gray-500" />
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+
+                                                        {/* Empty State */}
+                                                        {!hasContent && (
+                                                            <div className="flex items-center justify-end gap-2 p-3 text-gray-600 grayscale">
+                                                                <span className="text-xs font-bold">لا توجد محتويات حالياً</span>
+                                                                <Lock size={14} />
+                                                            </div>
                                                         )}
                                                     </>
                                                 );

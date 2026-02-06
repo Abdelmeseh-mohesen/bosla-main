@@ -34,6 +34,17 @@ import {
 import axios from "axios";
 import { env } from "@/config/env";
 import { ApiResponse } from "@/modules/auth/types/auth.types";
+import { SubscriptionStatus } from "../types/teacher.types";
+
+// Helper function to normalize status to proper case
+function normalizeStatus(status: string | undefined): SubscriptionStatus {
+    if (!status) return "Pending";
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus === "approved") return "Approved";
+    if (lowerStatus === "rejected") return "Rejected";
+    if (lowerStatus === "pending") return "Pending";
+    return "Pending"; // Default
+}
 
 export const TeacherService = {
     // Courses
@@ -370,6 +381,102 @@ export const TeacherService = {
     },
 
     // Exams
+    // جلب كل الامتحانات للمحاضرة (يسمح بأكثر من امتحان)
+    getExams: async (lectureId: number): Promise<ApiResponse<Exam[]>> => {
+        try {
+            const response = await apiClient.get<ApiResponse<any>>(`/lectures/${lectureId}/exam`);
+            let data = response.data.data;
+
+            console.log("===== GET EXAMS RESPONSE =====");
+            console.log("Raw API response.data:", response.data);
+            console.log("Raw exam data:", data);
+            console.log("Is data an array?", Array.isArray(data));
+
+            // إذا لم يكن هناك بيانات
+            if (!data) {
+                console.log("No exams found for this lecture");
+                return {
+                    statusCode: 200,
+                    succeeded: true,
+                    message: "No exams found",
+                    errors: null,
+                    data: [],
+                    meta: ""
+                };
+            }
+
+            // تحويل البيانات إلى array إذا لم تكن كذلك
+            const examsArray = Array.isArray(data) ? data : [data];
+
+            if (examsArray.length === 0) {
+                return {
+                    statusCode: 200,
+                    succeeded: true,
+                    message: "No exams found",
+                    errors: null,
+                    data: [],
+                    meta: ""
+                };
+            }
+
+            // تطبيع كل الامتحانات
+            const normalizedExams: Exam[] = examsArray.map((examData: any) => ({
+                id: examData.id || examData.Id,
+                title: examData.title || examData.Title,
+                lectureId: examData.lectureId || examData.LectureId,
+                lectureName: examData.lectureName || examData.LectureName,
+                deadline: examData.deadline || examData.Deadline,
+                durationInMinutes: examData.durationInMinutes !== undefined ? examData.durationInMinutes : examData.DurationInMinutes,
+                // تحويل النوع من نص إلى رقم: Exam -> 1, Assignment -> 2
+                type: (examData.type === 'Assignment' || examData.Type === 'Assignment' || examData.type === 2) ? 2 : 1,
+                isVisible: examData.isVisible ?? examData.IsVisible ?? true,
+                isRandomized: examData.isRandomized ?? examData.IsRandomized ?? false,
+                // ترتيب الأسئلة حسب الـ id لضمان ظهورها بترتيب الإنشاء
+                questions: (examData.questions || examData.Questions || []).map((q: any) => {
+                    console.log("Raw question data:", q);
+                    console.log("All question keys:", Object.keys(q));
+                    console.log("Raw options:", q.options || q.Options || q.questionOptions || q.QuestionOptions);
+                    return {
+                        id: q.id || q.Id,
+                        questionType: q.questionType || q.QuestionType,
+                        content: q.content || q.Content,
+                        answerType: q.answerType || q.AnswerType,
+                        score: q.score || q.Score,
+                        correctByAssistant: q.correctByAssistant !== undefined ? q.correctByAssistant : q.CorrectByAssistant,
+                        correctAnswerPath: q.correctAnswerPath || q.CorrectAnswerPath || q.correctAnswerFile || q.CorrectAnswerFile || q.correctAnswerImage || q.CorrectAnswerImage || q.correctAnswerImageUrl || q.CorrectAnswerImageUrl,
+                        examId: q.examId || q.ExamId,
+                        options: (q.options || q.Options || q.questionOptions || q.QuestionOptions || []).map((o: any) => ({
+                            id: o.id || o.Id,
+                            content: o.content || o.Content,
+                            isCorrect: o.isCorrect !== undefined ? o.isCorrect : o.IsCorrect,
+                            questionId: o.questionId || o.QuestionId
+                        }))
+                    };
+                }).sort((a: any, b: any) => a.id - b.id)
+            }));
+
+            console.log("Normalized exams count:", normalizedExams.length);
+            console.log("Normalized exams:", JSON.stringify(normalizedExams, null, 2));
+
+            return { ...response.data, data: normalizedExams };
+        } catch (error: any) {
+            // معالجة حالة 404 - لا يوجد امتحانات
+            if (error?.response?.status === 404) {
+                console.log("No exams found for this lecture (404)");
+                return {
+                    statusCode: 200,
+                    succeeded: true,
+                    message: "No exams found",
+                    errors: null,
+                    data: [],
+                    meta: ""
+                };
+            }
+            throw error;
+        }
+    },
+
+    // جلب امتحان واحد (للتوافق مع الكود القديم)
     getExam: async (lectureId: number): Promise<ApiResponse<Exam>> => {
         try {
             const response = await apiClient.get<ApiResponse<any>>(`/lectures/${lectureId}/exam`);
@@ -422,6 +529,7 @@ export const TeacherService = {
                 type: data.type || data.Type,
                 isVisible: data.isVisible ?? data.IsVisible ?? true,
                 isRandomized: data.isRandomized ?? data.IsRandomized ?? false,
+                // ترتيب الأسئلة حسب الـ id لضمان ظهورها بترتيب الإنشاء
                 questions: (data.questions || data.Questions || []).map((q: any) => {
                     // Log for debugging once
                     if (q === (data.questions || data.Questions)[0]) {
@@ -443,7 +551,7 @@ export const TeacherService = {
                             questionId: o.questionId || o.QuestionId
                         }))
                     };
-                })
+                }).sort((a: any, b: any) => a.id - b.id)
             };
 
             console.log("Normalized exam with id:", normalizedExam.id);
@@ -722,11 +830,17 @@ export const TeacherService = {
     },
 
     createOption: async (data: CreateOptionRequest): Promise<ApiResponse<ExamOption>> => {
+        console.log("===== CREATE OPTION =====");
+        console.log("Sending data:", data);
+        console.log("questionId:", data.questionId);
+
         const response = await apiClient.post<ApiResponse<any>>("/question-options", {
             content: data.content,
             isCorrect: data.isCorrect,
             questionId: data.questionId
         });
+
+        console.log("Response:", response.data);
 
         const o = response.data.data;
         if (!o) return response.data;
@@ -867,7 +981,7 @@ export const TeacherService = {
                     teacherName: s.teacherName || s.TeacherName,
                     educationStageId: s.educationStageId || s.EducationStageId,
                     educationStageName: s.educationStageName || s.EducationStageName,
-                    status: s.status || s.Status,
+                    status: normalizeStatus(s.status || s.Status),
                     createdAt: s.createdAt || s.CreatedAt,
                     lectures: (s.lectures || s.Lectures || []).map((l: any) => ({
                         id: l.id || l.Id,
@@ -918,8 +1032,23 @@ export const TeacherService = {
     },
 
     updateSubscriptionStatus: async (data: UpdateSubscriptionStatusRequest): Promise<ApiResponse<any>> => {
-        const response = await apiClient.put<ApiResponse<any>>("/course-subscriptions/status", data);
-        return response.data;
+        console.log("===== UPDATE SUBSCRIPTION STATUS =====");
+        console.log("Request data:", {
+            id: data.id,
+            status: data.status
+        });
+
+        try {
+            const response = await apiClient.put<ApiResponse<any>>("/course-subscriptions/status", {
+                id: data.id,
+                status: data.status
+            });
+            console.log("Response:", response.data);
+            return response.data;
+        } catch (error: any) {
+            console.error("Update subscription error:", error?.response?.data || error?.message);
+            throw error;
+        }
     },
 
     approveSubscription: async (teacherId: number, courseId: number, studentEmail: string): Promise<ApiResponse<any>> => {

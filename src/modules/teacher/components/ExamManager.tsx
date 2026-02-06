@@ -48,6 +48,7 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
     const queryClient = useQueryClient();
     const [isCreatingExam, setIsCreatingExam] = useState(false);
     const [isEditingExam, setIsEditingExam] = useState(false);
+    const [selectedExamIndex, setSelectedExamIndex] = useState(0); // الامتحان المختار حالياً
     const [examTitle, setExamTitle] = useState("");
     const [deadline, setDeadline] = useState("");
     const [durationInMinutes, setDurationInMinutes] = useState(60);
@@ -77,27 +78,49 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
         }
     }, []);
 
-    // Fetch Exam
-    const { data: examResponse, isLoading: isLoadingExam, error: examError } = useQuery({
-        queryKey: ["lectureExam", lectureId],
-        queryFn: () => TeacherService.getExam(lectureId),
+    // عند تغيير الامتحان المختار، إغلاق عرض النتائج لتجنب عرض نتائج امتحان خاطئ
+    useEffect(() => {
+        setIsViewingSubmissions(false);
+    }, [selectedExamIndex]);
+
+    // Fetch All Exams for this lecture (يدعم امتحانات متعددة)
+    const { data: examsResponse, isLoading: isLoadingExams, error: examsError } = useQuery({
+        queryKey: ["lectureExams", lectureId],
+        queryFn: () => TeacherService.getExams(lectureId),
     });
 
-    const exam = examResponse?.data;
+    const exams = examsResponse?.data || [];
+    // التأكد من أن الـ index ضمن النطاق الصحيح
+    const safeExamIndex = exams.length > 0 ? Math.min(selectedExamIndex, exams.length - 1) : 0;
+    const exam = exams[safeExamIndex] || null; // الامتحان المختار حالياً
 
     // Debug logging
     console.log("===== EXAM MANAGER DEBUG =====");
     console.log("lectureId:", lectureId);
-    console.log("isLoadingExam:", isLoadingExam);
-    console.log("examError:", examError);
-    console.log("examResponse:", examResponse);
-    console.log("exam:", exam);
+    console.log("isLoadingExams:", isLoadingExams);
+    console.log("examsError:", examsError);
+    console.log("examsResponse:", examsResponse);
+    console.log("All exams:", exams);
+    console.log("selectedExamIndex:", selectedExamIndex);
+    console.log("safeExamIndex:", safeExamIndex);
+    console.log("Current exam:", exam);
+    console.log("Current exam questions:", exam?.questions);
+    console.log("Questions count:", exam?.questions?.length);
 
     // Mutation: Create Exam
     const createExamMutation = useMutation({
         mutationFn: TeacherService.createExam,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
+        onSuccess: async () => {
+            // إعادة جلب البيانات أولاً
+            await queryClient.invalidateQueries({ queryKey: ["lectureExams", lectureId] });
+            // الانتقال للامتحان الجديد (سيكون آخر عنصر في القائمة)
+            // نستخدم setTimeout للتأكد من تحديث البيانات أولاً
+            setTimeout(() => {
+                const updatedExams = queryClient.getQueryData<any>(["lectureExams", lectureId]);
+                if (updatedExams?.data && updatedExams.data.length > 0) {
+                    setSelectedExamIndex(updatedExams.data.length - 1);
+                }
+            }, 100);
             setIsCreatingExam(false);
             setExamTitle("");
             setDeadline("");
@@ -123,8 +146,8 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
     // Mutation: Change Exam Visibility
     const changeVisibilityMutation = useMutation({
         mutationFn: TeacherService.changeExamVisibility,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
+        onSuccess: async () => {
+            await queryClient.refetchQueries({ queryKey: ["lectureExams", lectureId] });
         },
         onError: () => showToast("فشل تغيير حالة الظهور", "error")
     });
@@ -133,18 +156,41 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
     // Mutation: Create Question
     const createQuestionMutation = useMutation({
         mutationFn: TeacherService.createQuestion,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
-            showToast("تم إضافة السؤال");
+        onSuccess: (response) => {
+            const newQuestion = response.data;
+            if (newQuestion) {
+                // تحديث البيانات محلياً فوراً
+                queryClient.setQueryData<any>(["lectureExams", lectureId], (oldData: any) => {
+                    if (!oldData || !oldData.data) return oldData;
+
+                    return {
+                        ...oldData,
+                        data: oldData.data.map((exam: any) => {
+                            if (exam.id === newQuestion.examId) {
+                                return {
+                                    ...exam,
+                                    questions: [...(exam.questions || []), newQuestion]
+                                };
+                            }
+                            return exam;
+                        })
+                    };
+                });
+
+                showToast("✓ تمت إضافة السؤال بنجاح - يظهر الآن في القائمة");
+            }
         },
-        onError: () => showToast("فشل إضافة السؤال", "error")
+        onError: (error) => {
+            console.error("Failed to create question:", error);
+            showToast("فشل إضافة السؤال", "error");
+        }
     });
 
     // Mutation: Edit Question
     const editQuestionMutation = useMutation({
         mutationFn: TeacherService.editQuestion,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
+        onSuccess: async () => {
+            await queryClient.refetchQueries({ queryKey: ["lectureExams", lectureId] });
             showToast("تم تعديل السؤال بنجاح");
         },
         onError: () => showToast("فشل تعديل السؤال", "error")
@@ -153,8 +199,8 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
     // Mutation: Delete Question
     const deleteQuestionMutation = useMutation({
         mutationFn: TeacherService.deleteQuestion,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
+        onSuccess: async () => {
+            await queryClient.refetchQueries({ queryKey: ["lectureExams", lectureId] });
             showToast("تم حذف السؤال بنجاح");
         },
         onError: () => showToast("فشل حذف السؤال", "error")
@@ -164,18 +210,55 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
     // Mutation: Create Option
     const createOptionMutation = useMutation({
         mutationFn: TeacherService.createOption,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
-            showToast("تم إضافة الخيار");
+        onSuccess: async (response) => {
+            const newOption = response.data;
+            if (newOption) {
+                // تحديث البيانات محلياً فوراً
+                queryClient.setQueryData<any>(["lectureExams", lectureId], (oldData: any) => {
+                    if (!oldData || !oldData.data) return oldData;
+
+                    return {
+                        ...oldData,
+                        data: oldData.data.map((exam: any) => {
+                            // نبحث في كل الامتحانات لأننا لا نملك ID الامتحان مباشرة هنا بسهولة
+                            // لكن يمكننا البحث عن السؤال الذي يحتوي على هذا الخيار
+                            const questionExists = exam.questions?.find((q: any) => q.id === newOption.questionId);
+
+                            if (questionExists) {
+                                return {
+                                    ...exam,
+                                    questions: exam.questions.map((q: any) => {
+                                        if (q.id === newOption.questionId) {
+                                            return {
+                                                ...q,
+                                                options: [...(q.options || []), newOption]
+                                            };
+                                        }
+                                        return q;
+                                    })
+                                };
+                            }
+                            return exam;
+                        })
+                    };
+                });
+
+                // أيضاً نعيد جلب البيانات للتأكد من التزامن
+                await queryClient.refetchQueries({ queryKey: ["lectureExams", lectureId] });
+                showToast("تم إضافة الخيار بنجاح");
+            }
         },
-        onError: () => showToast("فشل إضافة الخيار", "error")
+        onError: (error) => {
+            console.error("Failed to create option:", error);
+            showToast("فشل إضافة الخيار", "error");
+        }
     });
 
     // Mutation: Edit Option
     const editOptionMutation = useMutation({
         mutationFn: TeacherService.editOption,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
+        onSuccess: async () => {
+            await queryClient.refetchQueries({ queryKey: ["lectureExams", lectureId] });
             showToast("تم تعديل الاختيار بنجاح");
         },
         onError: () => showToast("فشل تعديل الاختيار", "error")
@@ -184,8 +267,8 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
     // Mutation: Delete Option
     const deleteOptionMutation = useMutation({
         mutationFn: TeacherService.deleteOption,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
+        onSuccess: async () => {
+            await queryClient.refetchQueries({ queryKey: ["lectureExams", lectureId] });
             showToast("تم حذف الاختيار بنجاح");
         },
         onError: () => showToast("فشل حذف الاختيار", "error")
@@ -196,7 +279,7 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
     const deleteExamMutation = useMutation({
         mutationFn: TeacherService.deleteExam,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
+            queryClient.invalidateQueries({ queryKey: ["lectureExams", lectureId] });
             localStorage.setItem('exam_manager_toast', "تم حذف الامتحان بنجاح");
             window.location.reload();
         },
@@ -215,7 +298,8 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
         if (!deadline) return showToast("يرجى اختيار موعد انتهاء الامتحان", "error");
 
         const duration = Number(durationInMinutes);
-        if (isNaN(duration) || duration <= 0) {
+        // المدة إلزامية للامتحانات فقط، اختيارية للواجبات المنزلية
+        if (examType === 1 && (isNaN(duration) || duration <= 0)) {
             return showToast("يرجى إدخال مدة امتحان صحيحة", "error");
         }
 
@@ -224,13 +308,16 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
             return showToast("موعد انتهاء غير صالح", "error");
         }
 
+        // للواجب المنزلي، استخدم 0 إذا لم يتم تحديد مدة
+        const finalDuration = examType === 2 ? (duration || 0) : duration;
+
         if (isEditingExam && exam) {
             editExamMutation.mutate({
                 id: exam.id,
                 title: examTitle,
                 lectureId,
                 deadline: deadlineDate.toISOString(),
-                durationInMinutes: duration,
+                durationInMinutes: finalDuration,
                 type: examType,
                 isRandomized
             }, {
@@ -241,7 +328,7 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
                         isVisible: isVisible
                     }, {
                         onSuccess: () => {
-                            queryClient.invalidateQueries({ queryKey: ["lectureExam", lectureId] });
+                            queryClient.invalidateQueries({ queryKey: ["lectureExams", lectureId] });
                             setIsEditingExam(false);
                             showToast("تم تعديل الامتحان بنجاح");
                         }
@@ -253,7 +340,7 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
                 title: examTitle,
                 lectureId,
                 deadline: deadlineDate.toISOString(),
-                durationInMinutes: duration,
+                durationInMinutes: finalDuration,
                 type: examType,
                 isVisible,
                 isRandomized
@@ -261,7 +348,7 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
         }
     };
 
-    if (isLoadingExam) {
+    if (isLoadingExams) {
 
         return (
             <div className="flex items-center justify-center py-20">
@@ -270,14 +357,14 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
         );
     }
 
-    // --- Create Exam UI ---
-    if (!exam && !isCreatingExam) {
+    // --- No Exams Yet - Create First Exam UI ---
+    if (exams.length === 0 && !isCreatingExam) {
         return (
             <div className="text-center py-12 glass-card rounded-[2.5rem] border-dashed border-2 border-white/10">
                 <div className="bg-brand-red/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-brand-red">
                     <FileText size={40} />
                 </div>
-                <h3 className="text-2xl font-black text-white mb-2">لا يوجد امتحان لهذه المحاضرة</h3>
+                <h3 className="text-2xl font-black text-white mb-2">لا يوجد امتحانات لهذه المحاضرة</h3>
                 <p className="text-gray-400 font-bold mb-8">يمكنك إنشاء امتحان جديد وإضافة أسئلة متنوعة لطلابك</p>
                 <Button
                     onClick={() => setIsCreatingExam(true)}
@@ -383,13 +470,17 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
 
                                 {/* Duration Section */}
                                 <div className="space-y-2 text-right">
-                                    <Label className="text-gray-400 text-sm font-bold pr-2">مدة الامتحان (دقيقة)</Label>
+                                    <Label className="text-gray-400 text-sm font-bold pr-2">
+                                        مدة الامتحان (دقيقة)
+                                        {examType === 2 && <span className="text-purple-400 text-xs mr-2">(اختياري)</span>}
+                                    </Label>
                                     <div className="relative">
                                         <Input
                                             type="number"
                                             value={durationInMinutes}
                                             onChange={(e) => setDurationInMinutes(Number(e.target.value))}
-                                            className="h-12 md:h-[50px] rounded-xl text-center text-xl bg-black/40 border border-white/10 focus:border-brand-red text-white font-black pl-12 transition-all"
+                                            placeholder={examType === 2 ? "اختياري" : ""}
+                                            className={`h-12 md:h-[50px] rounded-xl text-center text-xl bg-black/40 border border-white/10 focus:border-brand-red text-white font-black pl-12 transition-all ${examType === 2 ? 'opacity-70' : ''}`}
                                         />
                                         <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" size={20} />
                                     </div>
@@ -673,6 +764,62 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
                     onClose={() => setNotification(null)}
                 />
             )}
+
+            {/* Exams List Selector - إذا كان هناك أكثر من امتحان */}
+            {exams.length > 0 && (
+                <div className="glass-card p-4 md:p-5 rounded-3xl border border-white/5">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 text-right order-2 md:order-1">
+                            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400">
+                                <FileText size={20} />
+                            </div>
+                            <div>
+                                <h4 className="text-lg font-black text-white">امتحانات المحاضرة</h4>
+                                <p className="text-gray-500 text-xs font-bold">{exams.length} امتحان/امتحانات</p>
+                            </div>
+                        </div>
+                        <Button
+                            onClick={() => {
+                                setExamTitle("");
+                                setDeadline("");
+                                setDurationInMinutes(60);
+                                setExamType(1);
+                                setIsVisible(true);
+                                setIsRandomized(false);
+                                setIsCreatingExam(true);
+                            }}
+                            className="h-10 px-5 rounded-xl text-xs font-black shadow-lg shadow-green-500/20 bg-green-600 hover:bg-green-600/90 whitespace-nowrap flex items-center gap-2 order-1 md:order-2"
+                        >
+                            <Plus size={16} />
+                            إضافة امتحان جديد
+                        </Button>
+                    </div>
+
+                    {/* Exams Tabs */}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        {exams.map((e, index) => (
+                            <button
+                                key={e.id}
+                                onClick={() => setSelectedExamIndex(index)}
+                                className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-2 ${safeExamIndex === index
+                                    ? 'bg-brand-red text-white shadow-lg shadow-brand-red/30 scale-105'
+                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/5'
+                                    }`}
+                            >
+                                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black ${safeExamIndex === index ? 'bg-white/20' : 'bg-white/5'
+                                    }`}>
+                                    {index + 1}
+                                </span>
+                                <span className="max-w-[150px] truncate">{e.title}</span>
+                                {e.type === 2 && (
+                                    <span className="text-[9px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-black">واجب</span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="glass-card p-5 md:p-6 rounded-3xl border border-white/5">
                 <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
@@ -1499,6 +1646,18 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
             }
 
             // IF CREATE MODE
+            // ========== الحل الجذري: حفظ IDs الأسئلة الموجودة قبل الإنشاء ==========
+            // هذا يضمن أننا نجد السؤال الجديد بشكل صحيح
+            const cachedData = queryClient.getQueryData<any>(["lectureExams", lectureId]);
+            const cachedExam = cachedData?.data?.find((e: any) => e.id === examId);
+            const existingQuestionIds: Set<number> = new Set(
+                (cachedExam?.questions || []).map((q: any) => q.id)
+            );
+
+            console.log("===== CREATING NEW QUESTION =====");
+            console.log("Target examId:", examId);
+            console.log("Existing question IDs in this exam:", Array.from(existingQuestionIds));
+
             const questionData: CreateQuestionRequest = {
                 examId,
                 questionType: qType,
@@ -1516,51 +1675,76 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
             console.log("Question Response:", questionResponse);
             console.log("Created Question ID from response:", createdQuestionId);
 
-            // If we couldn't get the question ID from the response, try to get it by refreshing the exam
+            // ========== البحث عن السؤال الجديد إذا لم يرجعه الـ API ==========
             if (!createdQuestionId && (aType === "MCQ" || aType === "TrueFalse") && inlineOptions.length > 0) {
-                console.log("Question ID not in response, fetching exam to find question by content...");
+                console.log("Question ID not in response, searching for NEW question ID...");
 
-                // Wait 1 second to ensure DB consistency
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // محاولات متعددة للبحث عن السؤال الجديد
+                for (let attempt = 1; attempt <= 5; attempt++) {
+                    console.log(`Attempt ${attempt}/5 to find new question...`);
 
-                // Fetch the exam to get the latest questions
-                const examResponse = await TeacherService.getExam(lectureId);
-                const examData = examResponse.data;
+                    // انتظار تدريجي أكبر في كل محاولة
+                    await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
 
-                if (examData?.questions && examData.questions.length > 0) {
-                    // Try to find the question by content match (most reliable)
-                    // We look at the last 5 questions just in case
-                    const recentQuestions = examData.questions.slice(-5);
-                    const matchingQuestion = recentQuestions.find(q => q.content === content || (content.length > 5 && q.content.includes(content.substring(0, 20))));
+                    // Fetch ALL exams for this lecture
+                    const examsResponse = await TeacherService.getExams(lectureId);
+                    const allExams = examsResponse.data || [];
 
-                    if (matchingQuestion) {
-                        createdQuestionId = matchingQuestion.id;
-                        console.log("Found question ID by content match:", createdQuestionId);
-                    } else {
-                        // Fallback to absolute last question
-                        const lastQuestion = examData.questions[examData.questions.length - 1];
-                        createdQuestionId = lastQuestion.id;
-                        console.log("Fallback to last question ID:", createdQuestionId);
+                    // البحث عن الامتحان الصحيح بالـ ID - تحقق دقيق
+                    const currentExam = allExams.find(e => e.id === examId);
+
+                    if (!currentExam) {
+                        console.error("Could not find exam with ID:", examId);
+                        continue;
+                    }
+
+                    console.log("Found exam:", currentExam.id, "with", currentExam.questions?.length, "questions");
+
+                    if (currentExam.questions && currentExam.questions.length > 0) {
+                        // البحث عن سؤال جديد (ID غير موجود في القائمة السابقة)
+                        // وتأكد أنه ينتمي لهذا الامتحان
+                        const newQuestion = currentExam.questions.find((q: any) =>
+                            !existingQuestionIds.has(q.id) &&
+                            q.examId === examId
+                        );
+
+                        if (newQuestion) {
+                            createdQuestionId = newQuestion.id;
+                            console.log("✓✓✓ Found NEW question with ID:", createdQuestionId);
+                            console.log("Question examId:", newQuestion.examId, "matches target:", examId);
+                            break; // تم العثور على السؤال الجديد!
+                        } else {
+                            console.log("No new question found yet. Existing IDs:", Array.from(existingQuestionIds));
+                            console.log("Current questions:", currentExam.questions.map((q: any) => ({ id: q.id, examId: q.examId })));
+                        }
+                    }
+
+                    // إذا كانت آخر محاولة ولم نجد السؤال، نفشل بشكل آمن
+                    if (attempt === 5) {
+                        console.error("FAILED TO FIND NEW QUESTION AFTER 5 ATTEMPTS!");
                     }
                 }
             }
 
-            // If still no ID and we need to add options, show message but don't fail hard
+            // ========== تحقق نهائي قبل إنشاء الخيارات ==========
             if (!createdQuestionId && (aType === "MCQ" || aType === "TrueFalse") && inlineOptions.length > 0) {
-                showToast("تم إنشاء السؤال لكن لم يتم العثور عليه لإضافة الاختيارات. يرجى إضافتها يدوياً.", "error");
-                queryClient.invalidateQueries({ queryKey: ["lectureExam"] });
+                showToast("⚠️ لم نتمكن من التحقق من السؤال الجديد. يرجى إضافة الاختيارات يدوياً لتجنب الخطأ.", "error");
+                await queryClient.refetchQueries({ queryKey: ["lectureExams", lectureId] });
                 setIsSubmitting(false);
                 setIsSaved(true);
                 return;
             }
 
-            // Create options if we have a valid question ID
+            // ========== إنشاء الخيارات فقط إذا تأكدنا من الـ questionId ==========
             if (createdQuestionId && (aType === "MCQ" || aType === "TrueFalse") && inlineOptions.length > 0) {
-                console.log("Creating options for question:", createdQuestionId);
+                console.log("===== CREATING OPTIONS =====");
+                console.log("Target questionId:", createdQuestionId);
+                console.log("Options to create:", inlineOptions.length);
 
                 try {
-                    // Create options sequentially to avoid backend race conditions
+                    // إنشاء الخيارات بالتسلسل لتجنب race conditions
                     for (const opt of inlineOptions) {
+                        console.log("Creating option:", opt.content, "for questionId:", createdQuestionId);
                         try {
                             await TeacherService.createOption({
                                 content: opt.content,
@@ -1571,16 +1755,70 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                             console.error(`Failed to create option ${opt.content}:`, innerError);
                         }
                     }
-                    console.log("All options creation attempts finished");
+                    console.log("All options created successfully!");
                 } catch (optionError) {
                     console.error("Error creating options:", optionError);
                     showToast("حدث خطأ أثناء إضافة بعض الاختيارات", "error");
                 }
             }
 
-            // Success - refresh and mark as saved
-            queryClient.invalidateQueries({ queryKey: ["lectureExam"] });
-            showToast("تم إضافة السؤال والاختيارات بنجاح ✓");
+            // Success - تحديث السؤال في الـ cache مع الخيارات بشكل فوري
+            // أولاً نبني السؤال الكامل مع الخيارات
+            const fullQuestion = {
+                id: createdQuestionId,
+                questionType: qType,
+                content: qType === "Text" ? content : "Image Question",
+                answerType: aType === "Image" ? "ImageAnswer" : aType,
+                score: score,
+                correctByAssistant: correctByAssistant,
+                examId: examId,
+                options: inlineOptions.map((opt, idx) => ({
+                    id: Date.now() + idx, // temporary ID until refresh
+                    content: opt.content,
+                    isCorrect: opt.isCorrect,
+                    questionId: createdQuestionId
+                }))
+            };
+
+            // ========== إصلاح حرج: نتحقق أن السؤال جديد فعلاً قبل التحديث ==========
+            // نستخدم existingQuestionIds التي حفظناها في البداية للتأكد
+            const isNewQuestion = createdQuestionId && !existingQuestionIds.has(createdQuestionId);
+
+            console.log("===== UPDATING CACHE =====");
+            console.log("createdQuestionId:", createdQuestionId);
+            console.log("isNewQuestion:", isNewQuestion);
+            console.log("existingQuestionIds:", Array.from(existingQuestionIds));
+
+            if (isNewQuestion) {
+                // تحديث الـ cache محلياً لعرض السؤال فوراً مع الاختيارات
+                queryClient.setQueryData<any>(["lectureExams", lectureId], (oldData: any) => {
+                    if (!oldData || !oldData.data) return oldData;
+
+                    return {
+                        ...oldData,
+                        data: oldData.data.map((exam: any) => {
+                            if (exam.id === examId) {
+                                // إضافة السؤال الجديد فقط - لا نستبدل أي سؤال موجود!
+                                const existsInCache = exam.questions?.some((q: any) => q.id === createdQuestionId);
+                                if (!existsInCache) {
+                                    console.log("Adding NEW question to cache:", createdQuestionId);
+                                    return { ...exam, questions: [...(exam.questions || []), fullQuestion] };
+                                } else {
+                                    console.log("Question already in cache, skipping add");
+                                    return exam;
+                                }
+                            }
+                            return exam;
+                        })
+                    };
+                });
+            } else {
+                console.warn("⚠️ Not updating cache - questionId might be wrong or not new");
+            }
+
+            // ثم نعيد جلب البيانات من السيرفر للتأكد من التزامن
+            await queryClient.refetchQueries({ queryKey: ["lectureExams", lectureId] });
+            showToast("✓ تم إضافة السؤال والاختيارات بنجاح");
 
             // Mark as saved and store the question ID
             setSavedQuestionId(createdQuestionId || null);

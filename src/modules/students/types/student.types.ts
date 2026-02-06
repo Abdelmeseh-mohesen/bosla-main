@@ -9,15 +9,33 @@ export interface TeacherEducationStage {
     educationStageName: string;
 }
 
+// Material types: video, pdf, homework
+export interface LectureMaterial {
+    id: number;
+    title: string;
+    type: 'video' | 'pdf' | 'homework' | string;
+    fileUrl: string;
+    isFree: boolean;
+}
+
+export interface Lecture {
+    id: number;
+    title: string;
+    isVisible: boolean;
+    materials: LectureMaterial[];
+}
+
 export interface TeacherCourse {
     id: number;
     title: string;
     educationStageId: number;
     educationStageName: string;
     courseImageUrl: string | null;
+    teacherId?: number;
+    teacherName?: string;
     price: number;
     discountedPrice: number;
-    lectures: any[]; // Can be further typed if needed
+    lectures: Lecture[];
     subscriptionStatus?: 'Approved' | 'Pending' | 'Rejected' | null;
     isSubscribed?: boolean;
 }
@@ -35,6 +53,7 @@ export interface Teacher {
     phoneNumber: string;
     facebookUrl: string;
     telegramUrl: string;
+    youTubeUrl: string;
     whatsAppNumber: string;
     photoUrl: string | null;
     courses: TeacherCourse[];
