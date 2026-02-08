@@ -89,6 +89,7 @@ export interface Exam {
     IsFinsh?: boolean;
     deadline: string | null;
     durationInMinutes: number;
+    examType?: 'exam' | 'homework' | string; // نوع الاختبار
     questions: Question[];
 }
 

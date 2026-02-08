@@ -211,6 +211,7 @@ export interface StudentAnswerDetail {
     imageAnswerUrl: string | null;
     selectedOptions: any[];
     questionOptions: StudentAnswerOption[];
+    correctAnswerPath?: string;
     feedback?: string;
 }
 

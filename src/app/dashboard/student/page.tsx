@@ -81,11 +81,13 @@ export default function StudentDashboardPage() {
 
 
 
-    const handleStartExam = async (lectureId: number) => {
+    const handleStartExam = async (examId: number, existingExamData?: any) => {
         setIsFetchingExam(true);
-        console.log("Starting exam check for lecture:", lectureId);
+        console.log("Starting exam check for exam ID:", examId);
         try {
-            const exam = await StudentService.getExamByLecture(lectureId);
+            // استخدام البيانات الموجودة إذا توفرت، وإلا جلبها من الـ API
+            const exam = existingExamData || await StudentService.getExamById(examId);
+
             if (exam) {
                 console.log("Exam Data Received:", {
                     id: exam.id,
@@ -101,12 +103,12 @@ export default function StudentDashboardPage() {
 
                 // Check exam access first (including deadline exceptions)
                 console.log("Checking exam access for student:", studentId);
-                const accessCheck = await StudentService.checkExamAccess(exam.id, Number(studentId));
+                const accessCheck = await StudentService.checkExamAccess(examId, Number(studentId));
                 console.log("Exam Access Check Result:", accessCheck);
 
                 // 1. Try to fetch the score first to see if it's already finished
                 try {
-                    const existingScore = await StudentService.getExamScore(exam.id, Number(studentId));
+                    const existingScore = await StudentService.getExamScore(examId, Number(studentId));
                     const rawScoreFinished = (existingScore as any).isFinished || (existingScore as any).IsFinished || (existingScore as any).IsFinsh || (existingScore as any).isFinsh;
                     const isScoreFinished = rawScoreFinished === true || rawScoreFinished === "true" || rawScoreFinished === 1;
 
@@ -120,7 +122,7 @@ export default function StudentDashboardPage() {
                         }
 
                         setSelectedScore(existingScore);
-                        setCurrentLectureId(lectureId); // حفظ lectureId
+                        setCurrentLectureId((exam as any).lectureId || null); // حفظ lectureId
                         setSelectedExam(null);
                         return;
                     }
@@ -165,9 +167,9 @@ export default function StudentDashboardPage() {
                 if (isExamFinished && !accessCheck.extendedDeadline) {
                     console.log("!!! EXAM ALREADY FINISHED (from exam endpoint) !!! Blocking entry and showing results.");
                     try {
-                        const score = await StudentService.getExamScore(exam.id, Number(studentId));
+                        const score = await StudentService.getExamScore(examId, Number(studentId));
                         setSelectedScore(score);
-                        setCurrentLectureId(lectureId); // حفظ lectureId
+                        setCurrentLectureId((exam as any).lectureId || null); // حفظ lectureId
                         setSelectedExam(null);
                     } catch (scoreError) {
                         console.error("Error fetching exam results", scoreError);
@@ -176,11 +178,12 @@ export default function StudentDashboardPage() {
                     return;
                 }
 
-                console.log("Entering exam view mode for exam ID:", exam.id);
+                // الامتحان جاهز للعرض - تم جلبه بالكامل من getExamById
+                console.log("Entering exam view mode for exam ID:", examId);
                 setSelectedExam(exam);
                 setSelectedScore(null);
             } else {
-                alert("لا يوجد امتحان متاح لهذه المحاضرة حالياً");
+                alert("لا يوجد امتحان متاح أو حدث خطأ في التحميل");
             }
         } catch (error) {
             console.error("Error fetching exam", error);

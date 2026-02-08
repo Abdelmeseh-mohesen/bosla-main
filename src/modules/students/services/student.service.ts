@@ -49,11 +49,18 @@ export const StudentService = {
     },
     getExamByLecture: async (lectureId: number): Promise<Exam | null> => {
         try {
+            console.log(`===== GET EXAM BY LECTURE ${lectureId} =====`);
             const response = await apiClient.get<ApiResponse<any>>(`/lectures/${lectureId}/exam`);
+            console.log("getExamByLecture Response:", response.data);
             let data = response.data.data;
+            console.log("getExamByLecture Data:", data);
 
-            if (!data) return null;
+            if (!data) {
+                console.log("getExamByLecture: No data");
+                return null;
+            }
             if (Array.isArray(data)) {
+                console.log("getExamByLecture: Data is array with", data.length, "items");
                 if (data.length === 0) return null;
                 data = data[0];
             }
@@ -93,16 +100,114 @@ export const StudentService = {
             throw error;
         }
     },
+
+    // جلب كل الامتحانات والواجبات للمحاضرة
+    getExamsByLecture: async (lectureId: number): Promise<Exam[]> => {
+        try {
+            console.log(`===== FETCHING EXAMS FOR LECTURE ${lectureId} =====`);
+            // نستخدم apiClient لضمان وجود التوكن والتعامل مع الـ Headers بشكل صحيح
+            const response = await apiClient.get<ApiResponse<any>>(`/lectures/${lectureId}/exam`);
+
+            let rawData = response.data;
+            let data: any[] = [];
+
+            if (rawData && Array.isArray(rawData)) {
+                data = rawData;
+            } else if (rawData && rawData.data && Array.isArray(rawData.data)) {
+                data = rawData.data;
+            } else if (rawData && rawData.data && !Array.isArray(rawData.data)) {
+                data = [rawData.data];
+            } else if (rawData && !Array.isArray(rawData) && (rawData as any).id) {
+                data = [rawData];
+            }
+
+            console.log(`Parsed ${data.length} exams from API`);
+
+            const normalizedExams: Exam[] = data.map((item: any) => {
+                // تطبيع نوع الامتحان
+                let typeStr = item.examType || item.ExamType || item.type || item.Type || "exam";
+                if (typeof typeStr === 'string') {
+                    typeStr = typeStr.toLowerCase();
+                    if (typeStr === 'assignment') typeStr = 'homework';
+                } else if (typeof typeStr === 'number') {
+                    typeStr = typeStr === 2 ? 'homework' : 'exam';
+                }
+
+                return {
+                    id: item.id || item.Id || item.examId || item.ExamId,
+                    title: item.title || item.Title,
+                    lectureId: item.lectureId || item.LectureId,
+                    lectureName: item.lectureName || item.LectureName || "",
+                    isFinished: item.isFinished || item.IsFinished || item.IsFinsh || item.isFinsh || false,
+                    deadline: item.deadline || item.Deadline,
+                    durationInMinutes: item.durationInMinutes || item.DurationInMinutes,
+                    examType: typeStr,
+                    isVisible: item.isVisible, // الحفاظ على حالة الرؤية
+                    questions: item.questions || [] // تمرير الأسئلة الخام ليتم معالجتها لاحقاً إذا لزم
+                };
+            });
+
+            return normalizedExams;
+        } catch (error: any) {
+            // نتجاهل كل الأخطاء ونعيد مصفوفة فارغة لكي يعمل الـ Fallback
+            console.log(`StudentService failed for lecture ${lectureId}, logic will continue to fallback. Error:`, error.message);
+            return [];
+        }
+    },
+
+    // جلب امتحان واحد بالـ ID
+    getExamById: async (examId: number): Promise<Exam | null> => {
+        try {
+            const response = await apiClient.get<ApiResponse<any>>(`/exams/${examId}`);
+            let data = response.data.data;
+
+            if (!data) return null;
+
+            const normalizedExam: Exam = {
+                id: data.id || data.Id || data.examId || data.ExamId,
+                title: data.title || data.Title,
+                lectureId: data.lectureId || data.LectureId,
+                lectureName: data.lectureName || data.LectureName || "",
+                isFinished: data.isFinished || data.IsFinished || data.IsFinsh || data.isFinsh || false,
+                deadline: data.deadline || data.Deadline,
+                durationInMinutes: data.durationInMinutes || data.DurationInMinutes,
+                questions: (data.questions || data.Questions || []).map((q: any) => ({
+                    id: q.id || q.Id,
+                    questionType: q.questionType || q.QuestionType,
+                    content: q.content || q.Content,
+                    answerType: q.answerType || q.AnswerType,
+                    score: q.score || q.Score,
+                    correctByAssistant: q.correctByAssistant !== undefined ? q.correctByAssistant : q.CorrectByAssistant,
+                    correctAnswerImageUrl: q.correctAnswerImageUrl || q.CorrectAnswerImageUrl || null,
+                    examId: q.examId || q.ExamId,
+                    options: (q.options || q.Options || []).map((o: any) => ({
+                        id: o.id || o.Id,
+                        content: o.content || o.Content,
+                        isCorrect: o.isCorrect !== undefined ? o.isCorrect : o.IsCorrect,
+                        questionId: o.questionId || o.QuestionId
+                    }))
+                }))
+            };
+
+            return normalizedExam;
+        } catch (error: any) {
+            if (error.response?.status === 404) {
+                return null;
+            }
+            throw error;
+        }
+    },
     submitExam: async (data: SubmitExamRequest): Promise<ApiResponse<any>> => {
         // Transform to PascalCase for backend compatibility as seen in other endpoints
+        // Transform payload to match Swagger (camelCase)
         const payload = {
-            ExamId: data.examId,
-            StudentId: data.studentId,
-            Answers: data.answers.map((a) => ({
-                QuestionId: a.questionId,
-                SelectedOptionIds: a.selectedOptionIds || [],
-                TextAnswer: a.textAnswer || "",
-                ImageAnswerUrl: a.imageAnswerUrl || ""
+            examId: data.examId,
+            studentId: data.studentId,
+            answers: data.answers.map((a) => ({
+                questionId: a.questionId,
+                selectedOptionIds: a.selectedOptionIds || [],
+                textAnswer: a.textAnswer || "",
+                imageAnswerUrl: a.imageAnswerUrl || ""
             }))
         };
 

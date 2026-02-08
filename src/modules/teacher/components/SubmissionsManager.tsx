@@ -35,10 +35,12 @@ export function SubmissionsManager({ lectureId, examId, lectureName, onBack }: S
         setTimeout(() => setNotification(null), 3000);
     };
 
-    // Query: Fetch all submissions for this lecture
+    // Query: Fetch all submissions for this exam
     const { data: submissionsResponse, isLoading: isLoadingSubmissions } = useQuery({
-        queryKey: ["examSubmissions", lectureId, examId],
-        queryFn: () => TeacherService.getExamSubmissions(lectureId)
+        // قمنا بتحديث المفتاح ليعتمد على examId بدلاً من lectureId لضمان دقة الكاش
+        queryKey: ["examSubmissions", examId],
+        // تم التحديث لإرسال examId للدالة بناءً على التعديل في السيرفس
+        queryFn: () => TeacherService.getExamSubmissions(examId)
     });
 
     // Query: Fetch specific student result

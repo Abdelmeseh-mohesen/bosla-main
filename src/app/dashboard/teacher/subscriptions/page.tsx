@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TeacherService } from "@/modules/teacher/services/teacher.service";
 import { useTeacherAuth } from "@/modules/teacher/hooks/use-teacher-auth";
@@ -18,7 +18,10 @@ import {
     AlertCircle,
     Filter,
     Bell,
-    RefreshCw
+    RefreshCw,
+    ChevronDown,
+    ChevronUp,
+    Users
 } from "lucide-react";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -26,12 +29,24 @@ import { Modal } from "@/shared/ui/modal";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 
+// تجميع الاشتراكات حسب الكورس
+interface CourseGroup {
+    courseId: number;
+    courseName: string;
+    educationStageName: string;
+    subscriptions: CourseSubscription[];
+    pendingCount: number;
+    approvedCount: number;
+    rejectedCount: number;
+}
+
 export default function SubscriptionsPage() {
     const { teacherId, isAssistant } = useTeacherAuth();
     const queryClient = useQueryClient();
     const [updatingId, setUpdatingId] = useState<number | null>(null);
     const [filter, setFilter] = useState<SubscriptionStatus | "All">("All");
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set());
 
     const { data: subscriptionsResponse, isLoading, isRefetching, refetch } = useQuery({
         queryKey: ["teacherSubscriptions", teacherId],
@@ -53,6 +68,69 @@ export default function SubscriptionsPage() {
     const [manualEmail, setManualEmail] = useState("");
     const [isManualLoading, setIsManualLoading] = useState(false);
 
+    const subscriptions = subscriptionsResponse?.data || [];
+
+    // تجميع الاشتراكات حسب الكورس
+    const courseGroups = useMemo(() => {
+        const groups: Map<number, CourseGroup> = new Map();
+
+        subscriptions.forEach(sub => {
+            if (!groups.has(sub.courseId)) {
+                groups.set(sub.courseId, {
+                    courseId: sub.courseId,
+                    courseName: sub.courseName,
+                    educationStageName: sub.educationStageName,
+                    subscriptions: [],
+                    pendingCount: 0,
+                    approvedCount: 0,
+                    rejectedCount: 0
+                });
+            }
+
+            const group = groups.get(sub.courseId)!;
+            group.subscriptions.push(sub);
+
+            if (sub.status === "Pending") group.pendingCount++;
+            else if (sub.status === "Approved") group.approvedCount++;
+            else if (sub.status === "Rejected") group.rejectedCount++;
+        });
+
+        return Array.from(groups.values());
+    }, [subscriptions]);
+
+    // تبديل حالة التوسيع للكورس
+    const toggleCourse = (courseId: number) => {
+        setExpandedCourses(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(courseId)) {
+                newSet.delete(courseId);
+            } else {
+                newSet.add(courseId);
+            }
+            return newSet;
+        });
+    };
+
+    // توسيع/طي الكل
+    const toggleAll = () => {
+        if (expandedCourses.size === courseGroups.length) {
+            setExpandedCourses(new Set());
+        } else {
+            setExpandedCourses(new Set(courseGroups.map(g => g.courseId)));
+        }
+    };
+
+    // فلترة الاشتراكات داخل كل كورس
+    const getFilteredSubscriptions = (subs: CourseSubscription[]) => {
+        return subs.filter(sub => filter === "All" ? true : sub.status === filter);
+    };
+
+    // فلترة الكورسات التي تحتوي على اشتراكات مطابقة للفلتر
+    const filteredCourseGroups = courseGroups.filter(group => {
+        const filtered = getFilteredSubscriptions(group.subscriptions);
+        return filtered.length > 0;
+    });
+
     const handleManualActivation = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!manualCourseId || !manualEmail || !teacherId) return;
@@ -70,7 +148,7 @@ export default function SubscriptionsPage() {
                 setIsManualModalOpen(false);
                 setManualEmail("");
                 setManualCourseId("");
-                refetch(); // Refresh list to assume it might appear
+                refetch();
             } else {
                 setToast({ message: response.message || "حدث خطأ", type: 'error' });
             }
@@ -81,14 +159,10 @@ export default function SubscriptionsPage() {
         }
     };
 
-    const subscriptions = subscriptionsResponse?.data || [];
-
     const handleStatusChange = async (subscription: CourseSubscription, newStatus: SubscriptionStatus) => {
         setUpdatingId(subscription.courseSubscriptionId);
         try {
-            let response;
-
-            response = await TeacherService.updateSubscriptionStatus({
+            const response = await TeacherService.updateSubscriptionStatus({
                 id: subscription.courseSubscriptionId,
                 status: newStatus,
             });
@@ -113,10 +187,6 @@ export default function SubscriptionsPage() {
             setUpdatingId(null);
         }
     };
-
-    const filteredSubscriptions = subscriptions.filter(sub =>
-        filter === "All" ? true : sub.status === filter
-    );
 
     const getStatusBadge = (status: SubscriptionStatus) => {
         switch (status) {
@@ -228,35 +298,55 @@ export default function SubscriptionsPage() {
                     </div>
                 </div>
 
-                {/* Filter */}
-                <div className="flex items-center gap-3 flex-wrap mb-8 bg-[#0d1117] p-4 rounded-2xl border border-white/5">
-                    <Filter size={18} className="text-gray-500" />
-                    <span className="text-gray-500 font-bold text-sm">فلترة:</span>
-                    {(["All", "Pending", "Approved", "Rejected"] as const).map((status) => (
-                        <button
-                            key={status}
-                            onClick={() => setFilter(status)}
-                            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${filter === status
-                                ? 'bg-brand-red text-white shadow-lg shadow-brand-red/20'
-                                : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                                }`}
-                        >
-                            {status === "All" && `الكل (${subscriptions.length})`}
-                            {status === "Pending" && `قيد الانتظار (${pendingCount})`}
-                            {status === "Approved" && `مقبول (${approvedCount})`}
-                            {status === "Rejected" && `مرفوض (${rejectedCount})`}
-                        </button>
-                    ))}
+                {/* Filter & Toggle All */}
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 bg-[#0d1117] p-4 rounded-2xl border border-white/5">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <Filter size={18} className="text-gray-500" />
+                        <span className="text-gray-500 font-bold text-sm">فلترة:</span>
+                        {(["All", "Pending", "Approved", "Rejected"] as const).map((status) => (
+                            <button
+                                key={status}
+                                onClick={() => setFilter(status)}
+                                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${filter === status
+                                    ? 'bg-brand-red text-white shadow-lg shadow-brand-red/20'
+                                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                                    }`}
+                            >
+                                {status === "All" && `الكل (${subscriptions.length})`}
+                                {status === "Pending" && `قيد الانتظار (${pendingCount})`}
+                                {status === "Approved" && `مقبول (${approvedCount})`}
+                                {status === "Rejected" && `مرفوض (${rejectedCount})`}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Toggle All Button */}
+                    <button
+                        onClick={toggleAll}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-white/5 text-gray-400 hover:bg-white/10 transition-all"
+                    >
+                        {expandedCourses.size === courseGroups.length && courseGroups.length > 0 ? (
+                            <>
+                                <ChevronUp size={18} />
+                                طي الكل
+                            </>
+                        ) : (
+                            <>
+                                <ChevronDown size={18} />
+                                توسيع الكل
+                            </>
+                        )}
+                    </button>
                 </div>
 
-                {/* Subscriptions List */}
+                {/* Courses Groups */}
                 {isLoading ? (
                     <div className="space-y-4">
                         {[1, 2, 3].map(i => (
                             <div key={i} className="h-32 bg-white/5 rounded-2xl animate-pulse" />
                         ))}
                     </div>
-                ) : filteredSubscriptions.length === 0 ? (
+                ) : filteredCourseGroups.length === 0 ? (
                     <div className="text-center py-20 bg-[#0d1117] rounded-[2rem] border border-white/5">
                         <AlertCircle size={56} className="mx-auto text-gray-600 mb-4" />
                         <p className="text-xl font-bold text-gray-500">لا توجد طلبات اشتراك</p>
@@ -264,90 +354,147 @@ export default function SubscriptionsPage() {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {filteredSubscriptions.map((subscription) => (
-                            <div
-                                key={subscription.courseSubscriptionId}
-                                className="bg-[#0d1117] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all group"
-                            >
-                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                                    {/* Student & Course Info */}
-                                    <div className="flex items-start gap-5 flex-1">
-                                        <div className="w-16 h-16 rounded-2xl bg-brand-red/10 flex items-center justify-center text-brand-red shrink-0">
-                                            <User size={32} />
-                                        </div>
-                                        <div className="text-right flex-1">
-                                            <h4 className="text-xl font-black text-white mb-1">{subscription.studentName}</h4>
-                                            {subscription.studentEmail && subscription.studentEmail !== "No Email" && (
-                                                <p className="text-sm text-brand-red font-bold mb-2 flex justify-end">{subscription.studentEmail}</p>
-                                            )}
-                                            <p className="text-gray-400 font-bold flex items-center gap-2 justify-end mb-2">
-                                                <BookOpen size={16} />
-                                                {subscription.courseName}
-                                            </p>
-                                            <div className="flex flex-wrap items-center gap-3 justify-end text-xs text-gray-500 font-medium">
-                                                <span className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg">
-                                                    <GraduationCap size={14} />
-                                                    {subscription.educationStageName}
-                                                </span>
-                                                <span className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg">
-                                                    <Clock size={14} />
-                                                    {new Date(subscription.createdAt).toLocaleDateString('ar-EG', {
-                                                        year: 'numeric',
-                                                        month: 'short',
-                                                        day: 'numeric',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit'
-                                                    })}
-                                                </span>
+                        {filteredCourseGroups.map((group) => {
+                            const isExpanded = expandedCourses.has(group.courseId);
+                            const filteredSubs = getFilteredSubscriptions(group.subscriptions);
+
+                            return (
+                                <div
+                                    key={group.courseId}
+                                    className="bg-[#0d1117] border border-white/5 rounded-2xl overflow-hidden transition-all hover:border-white/10"
+                                >
+                                    {/* Course Header */}
+                                    <button
+                                        onClick={() => toggleCourse(group.courseId)}
+                                        className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-all"
+                                    >
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-red to-brand-red/60 flex items-center justify-center text-white shadow-lg shadow-brand-red/20">
+                                                <BookOpen size={32} />
+                                            </div>
+                                            <div className="text-right">
+                                                <h3 className="font-black text-white text-xl mb-1">{group.courseName}</h3>
+                                                <div className="flex items-center gap-4">
+                                                    <span className="flex items-center gap-1.5 text-sm text-gray-500">
+                                                        <GraduationCap size={16} />
+                                                        {group.educationStageName}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 text-sm text-gray-500">
+                                                        <Users size={16} />
+                                                        {group.subscriptions.length} طالب
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    {/* Status & Actions */}
-                                    <div className="flex flex-col items-end gap-3">
-                                        {getStatusBadge(subscription.status)}
+                                        <div className="flex items-center gap-5">
+                                            {/* Mini Stats */}
+                                            <div className="hidden md:flex items-center gap-3">
+                                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-yellow-500/10 text-yellow-500 text-sm font-bold">
+                                                    <Clock size={14} />
+                                                    {group.pendingCount}
+                                                </span>
+                                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-500/10 text-green-500 text-sm font-bold">
+                                                    <Check size={14} />
+                                                    {group.approvedCount}
+                                                </span>
+                                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 text-red-500 text-sm font-bold">
+                                                    <X size={14} />
+                                                    {group.rejectedCount}
+                                                </span>
+                                            </div>
 
-                                        {/* Action buttons - تغيير الحالة */}
-                                        <div className="flex gap-3">
-                                            <Button
-                                                onClick={() => handleStatusChange(subscription, "Approved")}
-                                                disabled={updatingId === subscription.courseSubscriptionId || subscription.status === "Approved"}
-                                                className={`h-11 px-6 rounded-xl font-bold transition-all ${subscription.status === "Approved"
-                                                        ? "bg-green-500/20 text-green-500/50 cursor-not-allowed"
-                                                        : "bg-green-500 hover:bg-green-600 text-white"
-                                                    }`}
-                                            >
-                                                {updatingId === subscription.courseSubscriptionId ? (
-                                                    <Loader2 size={18} className="animate-spin" />
-                                                ) : (
-                                                    <>
-                                                        <Check size={18} className="ml-1.5" />
-                                                        قبول
-                                                    </>
-                                                )}
-                                            </Button>
-                                            <Button
-                                                onClick={() => handleStatusChange(subscription, "Rejected")}
-                                                disabled={updatingId === subscription.courseSubscriptionId || subscription.status === "Rejected"}
-                                                className={`h-11 px-6 rounded-xl font-bold transition-all ${subscription.status === "Rejected"
-                                                        ? "bg-red-500/20 text-red-500/50 cursor-not-allowed"
-                                                        : "bg-red-500 hover:bg-red-600 text-white"
-                                                    }`}
-                                            >
-                                                {updatingId === subscription.courseSubscriptionId ? (
-                                                    <Loader2 size={18} className="animate-spin" />
-                                                ) : (
-                                                    <>
-                                                        <X size={18} className="ml-1.5" />
-                                                        رفض
-                                                    </>
-                                                )}
-                                            </Button>
+                                            {/* Expand/Collapse Icon */}
+                                            <div className={`p-3 rounded-xl bg-white/5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                <ChevronDown size={24} className="text-gray-400" />
+                                            </div>
                                         </div>
-                                    </div>
+                                    </button>
+
+                                    {/* Subscriptions List (Collapsible) */}
+                                    {isExpanded && (
+                                        <div className="border-t border-white/5 p-5 space-y-4 bg-black/20">
+                                            {filteredSubs.map((subscription) => (
+                                                <div
+                                                    key={subscription.courseSubscriptionId}
+                                                    className="bg-[#161b22] border border-white/5 rounded-xl p-5 hover:border-white/10 transition-all"
+                                                >
+                                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                                                        {/* Student Info */}
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-14 h-14 rounded-xl bg-brand-red/10 flex items-center justify-center text-brand-red">
+                                                                <User size={28} />
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <h4 className="font-black text-white text-lg">{subscription.studentName}</h4>
+                                                                {subscription.studentEmail && subscription.studentEmail !== "No Email" && (
+                                                                    <p className="text-sm font-bold text-brand-red/80">
+                                                                        {subscription.studentEmail}
+                                                                    </p>
+                                                                )}
+                                                                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5 justify-end">
+                                                                    <Clock size={12} />
+                                                                    {new Date(subscription.createdAt).toLocaleDateString('ar-EG', {
+                                                                        year: 'numeric',
+                                                                        month: 'short',
+                                                                        day: 'numeric',
+                                                                        hour: '2-digit',
+                                                                        minute: '2-digit'
+                                                                    })}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Status & Actions */}
+                                                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-4">
+                                                            {getStatusBadge(subscription.status)}
+
+                                                            {/* Action buttons */}
+                                                            <div className="flex gap-3">
+                                                                <Button
+                                                                    onClick={() => handleStatusChange(subscription, "Approved")}
+                                                                    disabled={updatingId === subscription.courseSubscriptionId || subscription.status === "Approved"}
+                                                                    className={`h-10 px-5 rounded-xl font-bold text-sm transition-all ${subscription.status === "Approved"
+                                                                        ? "bg-green-500/20 text-green-500/50 cursor-not-allowed"
+                                                                        : "bg-green-500 hover:bg-green-600 text-white"
+                                                                        }`}
+                                                                >
+                                                                    {updatingId === subscription.courseSubscriptionId ? (
+                                                                        <Loader2 size={16} className="animate-spin" />
+                                                                    ) : (
+                                                                        <>
+                                                                            <Check size={16} className="ml-1" />
+                                                                            قبول
+                                                                        </>
+                                                                    )}
+                                                                </Button>
+                                                                <Button
+                                                                    onClick={() => handleStatusChange(subscription, "Rejected")}
+                                                                    disabled={updatingId === subscription.courseSubscriptionId || subscription.status === "Rejected"}
+                                                                    className={`h-10 px-5 rounded-xl font-bold text-sm transition-all ${subscription.status === "Rejected"
+                                                                        ? "bg-red-500/20 text-red-500/50 cursor-not-allowed"
+                                                                        : "bg-red-500 hover:bg-red-600 text-white"
+                                                                        }`}
+                                                                >
+                                                                    {updatingId === subscription.courseSubscriptionId ? (
+                                                                        <Loader2 size={16} className="animate-spin" />
+                                                                    ) : (
+                                                                        <>
+                                                                            <X size={16} className="ml-1" />
+                                                                            رفض
+                                                                        </>
+                                                                    )}
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -399,6 +546,6 @@ export default function SubscriptionsPage() {
                     </Button>
                 </form>
             </Modal>
-        </div >
+        </div>
     );
 }

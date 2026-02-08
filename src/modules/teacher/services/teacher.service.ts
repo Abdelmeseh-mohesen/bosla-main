@@ -855,9 +855,39 @@ export const TeacherService = {
         return { ...response.data, data: normalizedOption };
     },
 
-    getExamSubmissions: async (lectureId: number): Promise<ApiResponse<ExamSubmission[]>> => {
-        const response = await apiClient.get<ApiResponse<ExamSubmission[]>>(`/lectures/${lectureId}/exam-submissions`);
-        return response.data;
+    getExamSubmissions: async (examId: number): Promise<ApiResponse<ExamSubmission[]>> => {
+        // تم التصحيح بناءً على Swagger: الرابط يعتمد على examId وليس lectureId
+        const response = await apiClient.get<ApiResponse<any>>(`/exams/${examId}/submissions`);
+
+        let data: any[] = [];
+        if (response.data && Array.isArray(response.data)) {
+            data = response.data;
+        } else if (response.data?.data && Array.isArray(response.data.data)) {
+            data = response.data.data;
+        }
+
+        const normalized: ExamSubmission[] = data.map((item: any) => ({
+            studentExamResultId: item.studentExamResultId || item.StudentExamResultId,
+            studentId: item.studentId || item.StudentId,
+            studentName: item.studentName || item.StudentName || "",
+            studentEmail: item.studentEmail || item.StudentEmail || "",
+            studentPhoneNumber: item.studentPhoneNumber || item.StudentPhoneNumber || "", // Added from swagger response
+            parentPhoneNumber: item.parentPhoneNumber || item.ParentPhoneNumber || "", // Added from swagger response
+            examId: item.examId || item.ExamId,
+            examTitle: item.examTitle || item.ExamTitle || "",
+            currentTotalScore: item.currentTotalScore ?? item.CurrentTotalScore ?? 0,
+            maxScore: item.maxScore ?? item.MaxScore ?? 0,
+            isFinished: item.isFinished ?? item.IsFinished ?? item.IsFinsh ?? false,
+            submittedAt: item.submittedAt || item.SubmittedAt,
+            totalAnswers: item.totalAnswers ?? item.TotalAnswers ?? 0,
+            manuallyGradedAnswers: item.manuallyGradedAnswers ?? item.ManuallyGradedAnswers ?? 0,
+            pendingGradingAnswers: item.pendingGradingAnswers ?? item.PendingGradingAnswers ?? 0
+        }));
+
+        return {
+            ...response.data,
+            data: normalized
+        };
     },
 
     gradeExam: async (data: GradeExamRequest): Promise<ApiResponse<any>> => {
@@ -893,7 +923,8 @@ export const TeacherService = {
                     optionContent: o.optionContent || o.OptionContent,
                     isCorrect: o.isCorrect ?? o.IsCorrect ?? false,
                     isSelected: o.isSelected ?? o.IsSelected ?? false
-                }))
+                })),
+                correctAnswerPath: a.correctAnswerPath || a.CorrectAnswerPath || a.correctAnswerFile || a.CorrectAnswerFile || a.correctAnswerImage || a.CorrectAnswerImage || null
             }))
         };
 

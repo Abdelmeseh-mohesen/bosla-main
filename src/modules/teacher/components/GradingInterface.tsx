@@ -175,9 +175,18 @@ export function GradingInterface({ result, onClose, onSave, isLoading }: Grading
             case 'MCQ': return 'اختيار من متعدد';
             case 'TrueFalse': return 'صح أو خطأ';
             case 'Essay': return 'إجابة مقالية';
-            case 'Image': return 'إجابة صورة';
+            case 'Image':
+            case 'ImageAnswer': return 'إجابة صورة';
             default: return type;
         }
+    };
+
+    const getImageUrl = (path: string | null | undefined) => {
+        if (!path) return '';
+        if (path.startsWith('http')) return path;
+        const url = `${env.API.SERVER_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+        // console.log("Generated Image URL:", url); // Uncomment for debugging
+        return url;
     };
 
     return (
@@ -279,7 +288,7 @@ export function GradingInterface({ result, onClose, onSave, isLoading }: Grading
                                 <div className="flex justify-center mb-8">
                                     <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black/40 shadow-2xl max-w-2xl">
                                         <img
-                                            src={questionContent}
+                                            src={getImageUrl(questionContent)}
                                             alt="صورة السؤال"
                                             className="w-full h-auto max-h-[400px] object-contain"
                                         />
@@ -360,13 +369,13 @@ export function GradingInterface({ result, onClose, onSave, isLoading }: Grading
                                 )}
 
                                 {/* Image Answer */}
-                                {aType === "Image" && (
+                                {(aType === "Image" || aType === "ImageAnswer") && (
                                     <div className="flex flex-col items-center gap-4">
                                         {(updatedImages[answerId!] || imageUrl) ? (
                                             <div className="relative group">
                                                 <div className="rounded-2xl overflow-hidden border border-white/10 bg-black/40 shadow-xl max-w-lg transition-all">
                                                     <img
-                                                        src={updatedImages[answerId!] || (imageUrl?.startsWith('http') ? imageUrl : `${env.API.SERVER_URL}${imageUrl?.startsWith('/') ? '' : '/'}${imageUrl}`)}
+                                                        src={updatedImages[answerId!] || getImageUrl(imageUrl)}
                                                         alt="إجابة الطالب"
                                                         className="w-full h-auto"
                                                     />
@@ -377,7 +386,7 @@ export function GradingInterface({ result, onClose, onSave, isLoading }: Grading
                                                     <button
                                                         onClick={() => {
                                                             if (answerId !== undefined) {
-                                                                const img = updatedImages[answerId] || (imageUrl?.startsWith('http') ? imageUrl : `${env.API.SERVER_URL}${imageUrl?.startsWith('/') ? '' : '/'}${imageUrl}`);
+                                                                const img = updatedImages[answerId] || getImageUrl(imageUrl);
                                                                 setEditingImage({ id: answerId, url: img });
                                                             }
                                                         }}
@@ -414,6 +423,31 @@ export function GradingInterface({ result, onClose, onSave, isLoading }: Grading
                                     </div>
                                 )}
                             </div>
+
+                            {/* Model Answer Section */}
+                            {(currentAnswer.correctAnswerPath || currentAnswer.CorrectAnswerPath) && (
+                                <div className="mt-8 bg-green-500/5 rounded-2xl border border-green-500/20 p-6 space-y-6">
+                                    <div className="flex items-center justify-end gap-2 text-green-500">
+                                        <span className="font-black">الإجابة النموذجية</span>
+                                        <CheckCircle2 size={20} />
+                                    </div>
+
+                                    <div className="flex justify-center">
+                                        <div className="rounded-2xl overflow-hidden border border-green-500/20 bg-black/40 shadow-xl max-w-lg">
+                                            <img
+                                                src={(() => {
+                                                    const path: string = currentAnswer.correctAnswerPath || currentAnswer.CorrectAnswerPath;
+                                                    if (!path) return '';
+                                                    if (path.startsWith('http')) return path;
+                                                    return `${env.API.SERVER_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+                                                })()}
+                                                alt="الإجابة النموذجية"
+                                                className="w-full h-auto"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 

@@ -1118,7 +1118,7 @@ function QuestionCard({
                     <div className="flex items-center justify-end gap-3 mt-1">
                         <span className="text-[10px] font-bold text-gray-500 bg-white/5 px-2 py-0.5 rounded uppercase">{question.questionType}</span>
                         <span className="text-[10px] font-bold text-brand-red bg-brand-red/10 px-2 py-0.5 rounded">{question.score} درجة</span>
-                        {question.answerType !== "Essay" && question.answerType !== "Image" && (
+                        {question.answerType !== "Essay" && question.answerType !== "Image" && question.answerType !== "ImageAnswer" && (
                             <span className="text-[10px] font-bold text-gray-400">• {question.options.length} اختيارات</span>
                         )}
                     </div>
@@ -1206,7 +1206,6 @@ function QuestionCard({
                                             className="w-full h-12 bg-[#06080a] border border-white/5 rounded-xl px-4 text-white text-right outline-none"
                                         >
                                             <option value="MCQ">اختيار من متعدد</option>
-                                            <option value="TrueFalse">صح أو خطأ</option>
                                             <option value="Essay">سؤال مقالي</option>
                                             <option value="Image">سؤال بصورة</option>
                                         </select>
@@ -1303,7 +1302,7 @@ function QuestionCard({
                     )}
 
                     {/* Options Content - Only for non-essay questions */}
-                    {question.answerType !== "Essay" && question.answerType !== "Image" ? (
+                    {question.answerType !== "Essay" && question.answerType !== "Image" && question.answerType !== "ImageAnswer" ? (
                         <>
                             {/* Options List */}
                             <div className="space-y-4 mb-8">
@@ -1478,18 +1477,7 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
     // Track where to paste images
     const [activeDropZone, setActiveDropZone] = useState<'question' | 'answer'>('question');
 
-    // Auto-populate True/False options when answer type changes
-    useEffect(() => {
-        if (aType === "TrueFalse") {
-            setInlineOptions([
-                { id: "tf-1", content: "صح", isCorrect: false },
-                { id: "tf-2", content: "خطأ", isCorrect: false }
-            ]);
-        } else if (aType === "MCQ" && inlineOptions.length === 2 && inlineOptions[0]?.id === "tf-1") {
-            // Clear true/false options when switching to MCQ
-            setInlineOptions([]);
-        }
-    }, [aType]);
+
 
     useEffect(() => {
         if (!file) {
@@ -1727,7 +1715,7 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
             }
 
             // ========== تحقق نهائي قبل إنشاء الخيارات ==========
-            if (!createdQuestionId && (aType === "MCQ" || aType === "TrueFalse") && inlineOptions.length > 0) {
+            if (!createdQuestionId && aType === "MCQ" && inlineOptions.length > 0) {
                 showToast("⚠️ لم نتمكن من التحقق من السؤال الجديد. يرجى إضافة الاختيارات يدوياً لتجنب الخطأ.", "error");
                 await queryClient.refetchQueries({ queryKey: ["lectureExams", lectureId] });
                 setIsSubmitting(false);
@@ -1736,7 +1724,7 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
             }
 
             // ========== إنشاء الخيارات فقط إذا تأكدنا من الـ questionId ==========
-            if (createdQuestionId && (aType === "MCQ" || aType === "TrueFalse") && inlineOptions.length > 0) {
+            if (createdQuestionId && aType === "MCQ" && inlineOptions.length > 0) {
                 console.log("===== CREATING OPTIONS =====");
                 console.log("Target questionId:", createdQuestionId);
                 console.log("Options to create:", inlineOptions.length);
@@ -1835,7 +1823,7 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
         }
     };
 
-    const needsOptions = aType === "MCQ" || aType === "TrueFalse";
+    const needsOptions = aType === "MCQ";
 
     return (
         <div className={`glass-card p-5 md:p-6 rounded-3xl border-2 transition-all group ${isSaved
@@ -1992,16 +1980,14 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                                             : 'bg-white/5 border-white/5 hover:border-white/10'
                                             }`}
                                     >
-                                        {/* Delete Button */}
-                                        {aType !== "TrueFalse" && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveOption(opt.id)}
-                                                className="text-red-400 hover:text-red-500 transition-colors"
-                                            >
-                                                <X size={18} />
-                                            </button>
-                                        )}
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveOption(opt.id)}
+                                            className="text-red-400 hover:text-red-500 transition-colors"
+                                        >
+                                            <X size={18} />
+                                        </button>
 
                                         {/* Correct Toggle */}
                                         <button
@@ -2017,18 +2003,12 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
 
                                         {/* Option Content */}
                                         <div className="flex-1">
-                                            {aType === "TrueFalse" ? (
-                                                <span className={`font-bold text-base md:text-lg ${opt.isCorrect ? 'text-green-400' : 'text-white'}`}>
-                                                    {opt.content}
-                                                </span>
-                                            ) : (
-                                                <Input
-                                                    value={opt.content}
-                                                    onChange={(e) => handleEditOptionContent(opt.id, e.target.value)}
-                                                    className="h-10 bg-white/5 border-white/10 text-right text-white font-bold focus:ring-brand-red/50 rounded-lg text-sm"
-                                                    placeholder="محتوى الاختيار"
-                                                />
-                                            )}
+                                            <Input
+                                                value={opt.content}
+                                                onChange={(e) => handleEditOptionContent(opt.id, e.target.value)}
+                                                className="h-10 bg-white/5 border-white/10 text-right text-white font-bold focus:ring-brand-red/50 rounded-lg text-sm"
+                                                placeholder="محتوى الاختيار"
+                                            />
                                         </div>
 
                                         {/* Option Number */}
@@ -2067,10 +2047,7 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
 
                             {/* Help Text */}
                             <p className="text-gray-500 text-xs mt-3 text-right">
-                                {aType === "TrueFalse"
-                                    ? "اضغط على الدائرة لتحديد الإجابة الصحيحة"
-                                    : "اضغط على الدائرة لتحديد الإجابة/الإجابات الصحيحة"
-                                }
+                                "اضغط على الدائرة لتحديد الإجابة/الإجابات الصحيحة"
                             </p>
                         </div>
                     )}
@@ -2098,7 +2075,6 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                                 className="w-full h-12 md:h-14 bg-[#0d1117] border border-white/5 rounded-xl px-4 text-white text-right outline-none focus:border-brand-red transition-all"
                             >
                                 <option value="MCQ">اختيار من متعدد</option>
-                                <option value="TrueFalse">صح أو خطأ</option>
                                 <option value="Essay">سؤال مقالي (نص)</option>
                                 <option value="Image">سؤال بصورة (رفع ملف)</option>
                             </select>

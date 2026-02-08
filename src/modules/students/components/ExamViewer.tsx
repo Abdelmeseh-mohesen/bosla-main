@@ -46,6 +46,8 @@ export function ExamViewer({ exam, onClose, onSubmit, readOnly = false }: ExamVi
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+
+
     const handleAnswerSelect = (questionId: number, optionId: number) => {
         if (readOnly) return;
         setAnswers(prev => {
@@ -97,6 +99,37 @@ export function ExamViewer({ exam, onClose, onSubmit, readOnly = false }: ExamVi
             };
         });
     };
+
+    // Handle Paste Event for Image Questions
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            if (readOnly) return;
+
+            const q = (exam.questions || [])[currentQuestionIndex];
+            if (!q) return;
+
+            // Check for both "Image" and "ImageAnswer"
+            const isImageQuestion = q.answerType === "Image" || (q.answerType as string) === "ImageAnswer";
+
+            if (isImageQuestion && e.clipboardData && e.clipboardData.items) {
+                const items = e.clipboardData.items;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf("image") !== -1) {
+                        const blob = items[i].getAsFile();
+                        if (blob) {
+                            e.preventDefault();
+                            const file = new File([blob], "pasted-image.png", { type: blob.type });
+                            handleImageChange(q.id, file);
+                        }
+                        break;
+                    }
+                }
+            }
+        };
+
+        window.addEventListener("paste", handlePaste);
+        return () => window.removeEventListener("paste", handlePaste);
+    }, [currentQuestionIndex, exam, readOnly]);
 
     const isQuestionAnswered = (qId: number) => {
         const ans = answers[qId];
@@ -232,9 +265,9 @@ export function ExamViewer({ exam, onClose, onSubmit, readOnly = false }: ExamVi
                                     </button>
                                 ))}
                             </div>
-                        ) : currentQuestion.answerType === "Image" ? (
+                        ) : currentQuestion.answerType === "Image" || (currentQuestion.answerType as string) === "ImageAnswer" ? (
                             <div className="space-y-6">
-                                <p className="text-right text-gray-500 font-bold">ارفع صورة الإجابة:</p>
+                                <p className="text-right text-gray-500 font-bold">ارفع صورة الإجابة أو قم بلصقها (Ctrl+V):</p>
                                 <div className="max-w-xl mx-auto">
                                     <label className={`flex flex-col items-center justify-center w-full h-64 rounded-[2rem] border-2 border-dashed transition-all cursor-pointer ${currentAnswer?.file ? 'border-brand-red bg-brand-red/5' : 'border-white/10 bg-white/5 hover:border-brand-red/20'}`}>
                                         {currentAnswer?.file ? (
@@ -261,7 +294,7 @@ export function ExamViewer({ exam, onClose, onSubmit, readOnly = false }: ExamVi
                                                 </div>
                                                 <div className="text-center">
                                                     <p className="text-xl font-black text-white mb-1">اضغط لرفع الصورة</p>
-                                                    <p className="text-sm font-bold">يمكنك رفع صورة واحدة فقط (JPG, PNG)</p>
+                                                    <p className="text-sm font-bold">أو اضغط Ctrl + V للصق الصورة مباشرة</p>
                                                 </div>
                                             </div>
                                         )}

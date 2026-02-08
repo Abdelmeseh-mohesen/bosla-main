@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import { TeacherCourse, Lecture, LectureMaterial } from "../types/student.types";
+import React, { useState, useRef, useEffect } from "react";
+import { TeacherCourse, Lecture, LectureMaterial, Exam } from "../types/student.types";
 import {
     ArrowLeft,
     Play,
@@ -15,18 +15,22 @@ import {
     ChevronUp,
     ExternalLink,
     MonitorPlay,
-    AlertCircle
+    AlertCircle,
+    ClipboardList,
+    Loader2
 } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import dynamic from 'next/dynamic';
+import { StudentService } from "../services/student.service";
 
 const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any;
 import { SecureVideoPlayer } from "./SecureVideoPlayer";
+import { TeacherService } from "@/modules/teacher/services/teacher.service";
 
 interface CoursePlayerProps {
     course: TeacherCourse;
     onBack: () => void;
-    onStartExam: (lectureId: number) => void;
+    onStartExam: (examId: number, exam?: Exam) => void; // تم تحديثها لاستقبال examId والامتحان كاملاً (اختياري)
     role?: string;
 }
 
@@ -45,6 +49,10 @@ export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: 
     const [expandedLecture, setExpandedLecture] = useState<number | null>(visibleLectures[0]?.id || null);
     const [activeContent, setActiveContent] = useState<{ type: 'video' | 'pdf', url: string, title: string } | null>(null);
 
+    // State لحفظ الامتحانات والواجبات لكل محاضرة
+    const [lectureExams, setLectureExams] = useState<Record<number, Exam[]>>({});
+    const [loadingExams, setLoadingExams] = useState<Record<number, boolean>>({});
+
     // Player State
     const [playing, setPlaying] = useState(false);
     const [played, setPlayed] = useState(0); // 0 to 1
@@ -55,6 +63,58 @@ export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: 
 
     const playerRef = useRef<any>(null);
     const playerContainerRef = useRef<HTMLDivElement>(null);
+
+    // جلب الامتحانات عند توسيع المحاضرة
+    useEffect(() => {
+        if (expandedLecture && !lectureExams[expandedLecture] && !loadingExams[expandedLecture]) {
+            fetchLectureExams(expandedLecture);
+        }
+    }, [expandedLecture]);
+
+    const fetchLectureExams = async (lectureId: number) => {
+        setLoadingExams(prev => ({ ...prev, [lectureId]: true }));
+        try {
+            // جلب الامتحانات من StudentService أولاً
+            let exams = await StudentService.getExamsByLecture(lectureId);
+            console.log(`StudentService exams for lecture ${lectureId}:`, exams);
+
+            // لو ما في امتحانات، نجرب TeacherService كـ fallback
+            if (!exams || exams.length === 0) {
+                console.log(`No exams from StudentService, trying TeacherService...`);
+                try {
+                    const teacherResponse = await TeacherService.getExams(lectureId);
+                    console.log(`TeacherService exams response:`, teacherResponse);
+                    if (teacherResponse.data && teacherResponse.data.length > 0) {
+                        // تحويل الامتحانات إلى النوع المطلوب للطلاب
+                        exams = teacherResponse.data
+                            // .filter((e: any) => e.isVisible !== false) // تم إزالة هذا الشرط للسماح بظهور الامتحانات المخفية
+                            .map((e: any) => ({
+                                id: e.id,
+                                title: e.title,
+                                lectureId: e.lectureId,
+                                lectureName: e.lectureName || '',
+                                isFinished: e.isFinished || false,
+                                deadline: e.deadline,
+                                durationInMinutes: e.durationInMinutes,
+                                examType: e.type === 2 ? 'homework' : 'exam',
+                                isVisible: e.isVisible, // نحتفظ بحالة الرؤية
+                                questions: e.questions || []
+                            }));
+                        console.log(`Converted TeacherService exams:`, exams);
+                    }
+                } catch (teacherError) {
+                    console.log(`TeacherService fallback also failed:`, teacherError);
+                }
+            }
+
+            setLectureExams(prev => ({ ...prev, [lectureId]: exams }));
+        } catch (error) {
+            console.error("Error fetching exams for lecture:", lectureId, error);
+            setLectureExams(prev => ({ ...prev, [lectureId]: [] }));
+        } finally {
+            setLoadingExams(prev => ({ ...prev, [lectureId]: false }));
+        }
+    };
 
     const handlePlayPause = () => setPlaying(!playing);
 
@@ -294,14 +354,101 @@ export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: 
                                                             );
                                                         })}
 
-                                                        {/* Exam Button - دائماً متاح */}
-                                                        <button
-                                                            onClick={() => onStartExam(lecture.id)}
-                                                            className="w-full flex items-center justify-between p-3 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 transition-colors border border-orange-500/20 group/exam"
-                                                        >
-                                                            <AlertCircle size={14} className="text-orange-500" />
-                                                            <span className="text-xs font-bold text-white">دخول الامتحان</span>
-                                                        </button>
+                                                        {/* Exams & Homeworks - عرض الامتحانات والواجبات الفعلية */}
+                                                        {loadingExams[lecture.id] ? (
+                                                            <div className="w-full flex items-center justify-center p-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                                                                <Loader2 size={16} className="text-orange-500 animate-spin ml-2" />
+                                                                <span className="text-xs font-bold text-gray-400">جاري تحميل الامتحانات...</span>
+                                                            </div>
+                                                        ) : lectureExams[lecture.id] && lectureExams[lecture.id].length > 0 ? (
+                                                            // عرض كل الامتحانات المتاحة
+                                                            lectureExams[lecture.id].map((exam) => {
+                                                                const isHomework = (exam as any).examType === 'homework' ||
+                                                                    (exam as any).type === 'homework' ||
+                                                                    exam.title?.includes('واجب');
+                                                                const isHidden = (exam as any).isVisible === false;
+
+                                                                return (
+                                                                    <button
+                                                                        key={exam.id}
+                                                                        onClick={() => onStartExam(exam.id, exam)}
+                                                                        className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors border group/exam ${isHomework
+                                                                            ? 'bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/20'
+                                                                            : 'bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/20'
+                                                                            } ${isHidden ? 'opacity-70 border-dashed' : ''}`}
+                                                                    >
+                                                                        <div className="flex items-center gap-2">
+                                                                            <ClipboardList size={14} className={isHomework ? 'text-purple-500' : 'text-orange-500'} />
+                                                                            <span className="text-xs font-bold text-white text-right">{exam.title}</span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1">
+                                                                            {isHidden && (
+                                                                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 ml-1">
+                                                                                    مخفي
+                                                                                </span>
+                                                                            )}
+                                                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isHomework
+                                                                                ? 'bg-purple-500/20 text-purple-400'
+                                                                                : 'bg-orange-500/20 text-orange-400'
+                                                                                }`}>
+                                                                                {isHomework ? 'واجب' : 'امتحان'}
+                                                                            </span>
+                                                                        </div>
+                                                                    </button>
+                                                                );
+                                                            })
+                                                        ) : (
+                                                            // Fallback - زر للبحث عن امتحان عند عدم وجود امتحانات محملة
+                                                            <button
+                                                                onClick={async () => {
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            // محاولة أولى: StudentService
+                                                                            let exam = await StudentService.getExamByLecture(lecture.id);
+
+                                                                            // محاولة ثانية: TeacherService (Fallback قوي)
+                                                                            if (!exam) {
+                                                                                try {
+                                                                                    console.log("Fallback: Fetching from TeacherService...");
+                                                                                    const teacherResponse = await TeacherService.getExams(lecture.id);
+                                                                                    if (teacherResponse.data && Array.isArray(teacherResponse.data) && teacherResponse.data.length > 0) {
+                                                                                        const tExam = teacherResponse.data[0];
+                                                                                        exam = {
+                                                                                            id: tExam.id,
+                                                                                            title: tExam.title,
+                                                                                            lectureId: tExam.lectureId,
+                                                                                            lectureName: tExam.lectureName || '',
+                                                                                            isFinished: tExam.isFinished || false,
+                                                                                            deadline: tExam.deadline,
+                                                                                            durationInMinutes: tExam.durationInMinutes,
+                                                                                            examType: tExam.type === 2 ? 'homework' : 'exam',
+                                                                                            questions: tExam.questions || []
+                                                                                        } as any;
+                                                                                        console.log("Fallback: Found exam in TeacherService", exam);
+                                                                                    }
+                                                                                } catch (e) {
+                                                                                    console.error("Fallback failed:", e);
+                                                                                }
+                                                                            }
+
+                                                                            if (exam) {
+                                                                                onStartExam(exam.id, exam);
+                                                                            } else {
+                                                                                alert("لا يوجد امتحان متاح لهذه المحاضرة حالياً - تأكد من صلاحية العرض");
+                                                                            }
+                                                                        }}
+                                                                        className="w-full flex items-center justify-between p-3 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 transition-colors border border-orange-500/20 group/exam"
+                                                                    >
+                                                                        <AlertCircle size={14} className="text-orange-500" />
+                                                                        <span className="text-xs font-bold text-white">دخول الامتحان (محاولة مباشرة)</span>
+                                                                    </button>
+                                                                }}
+                                                                className="w-full flex items-center justify-between p-3 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 transition-colors border border-orange-500/20 group/exam"
+                                                            >
+                                                                <AlertCircle size={14} className="text-orange-500" />
+                                                                <span className="text-xs font-bold text-white">دخول الامتحان</span>
+                                                            </button>
+                                                        )}
 
                                                         {/* PDFs - ملفات PDF */}
                                                         {pdfs.map((material: LectureMaterial) => {
