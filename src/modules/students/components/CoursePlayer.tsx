@@ -418,7 +418,7 @@ export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: 
                                                                                             title: tExam.title,
                                                                                             lectureId: tExam.lectureId,
                                                                                             lectureName: tExam.lectureName || '',
-                                                                                            isFinished: tExam.isFinished || false,
+                                                                                            isFinished: (tExam as any).isFinished || false,
                                                                                             deadline: tExam.deadline,
                                                                                             durationInMinutes: tExam.durationInMinutes,
                                                                                             examType: tExam.type === 2 ? 'homework' : 'exam',
