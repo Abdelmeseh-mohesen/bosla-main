@@ -91,9 +91,7 @@ export default function StudentDashboardPage() {
             if (exam) {
                 console.log("Exam Data Received:", {
                     id: exam.id,
-                    isFinished: (exam as any).isFinished,
-                    IsFinished: (exam as any).IsFinished,
-                    IsFinsh: (exam as any).IsFinsh
+                    isFinished: (exam as any).isFinished
                 });
 
                 if (!studentId) {
@@ -101,87 +99,87 @@ export default function StudentDashboardPage() {
                     return;
                 }
 
-                // Check exam access first (including deadline exceptions)
+                // 1. Check exam access (Source of Truth)
+                // This determines if the student *can* take/retake the exam right now
                 console.log("Checking exam access for student:", studentId);
                 const accessCheck = await StudentService.checkExamAccess(examId, Number(studentId));
                 console.log("Exam Access Check Result:", accessCheck);
 
-                // 1. Try to fetch the score first to see if it's already finished
+                // 2. Check previous submission status (for UI decision)
+                let existingScore = null;
+                let isScoreFinished = false;
                 try {
-                    const existingScore = await StudentService.getExamScore(examId, Number(studentId));
-                    const rawScoreFinished = (existingScore as any).isFinished || (existingScore as any).IsFinished || (existingScore as any).IsFinsh || (existingScore as any).isFinsh;
-                    const isScoreFinished = rawScoreFinished === true || rawScoreFinished === "true" || rawScoreFinished === 1;
+                    existingScore = await StudentService.getExamScore(examId, Number(studentId));
+                    const rawScoreFinished = existingScore ? ((existingScore as any).isFinished || (existingScore as any).IsFinished || (existingScore as any).IsFinsh || (existingScore as any).isFinsh) : false;
+                    isScoreFinished = rawScoreFinished === true || rawScoreFinished === "true" || rawScoreFinished === 1;
+                } catch (e) {
+                    console.log("No existing score found or error fetching score.");
+                }
 
+                // --- LOGIC FLOW ---
+
+                // Case A: Student IS ALLOWED to access (New attempt or Retake Exception)
+                if (accessCheck.canAccessExam) {
                     if (isScoreFinished) {
-                        console.log("!!! EXAM ALREADY FINISHED (from score endpoint) !!! Blocking entry and showing results.");
-
-                        // Even if finished, check if they have an exception to re-take
-                        if (accessCheck.canAccessExam && accessCheck.extendedDeadline) {
-                            // Student has exception - allow viewing results but also show option to retake
-                            console.log("Student has deadline exception, showing results but can retake.");
+                        // User has finished before.
+                        // Only allow retake if there is a specific exception (extendedDeadline is present)
+                        if (accessCheck.extendedDeadline) {
+                            // Exception Case: Allow retake
+                            if (confirm(`لقد أتممت هذا الامتحان مسبقاً. هل تود إعادته الآن؟\n(ملاحظة: لديك استثناء يسمح لك بالإعادة)`)) {
+                                console.log("User chose to retake exam (Exception flow)");
+                                setSelectedExam(exam);
+                                setSelectedScore(null);
+                            } else {
+                                console.log("User chose to view results instead of retaking");
+                                setSelectedScore(existingScore);
+                                setCurrentLectureId((exam as any).lectureId || null);
+                                setSelectedExam(null);
+                            }
+                        } else {
+                            // Standard Case: Exam is open but student finished and has NO exception -> View Results
+                            console.log("Exam is still open but student finished and has no exception. Showing results.");
+                            setSelectedScore(existingScore);
+                            setCurrentLectureId((exam as any).lectureId || null);
+                            setSelectedExam(null);
                         }
-
-                        setSelectedScore(existingScore);
-                        setCurrentLectureId((exam as any).lectureId || null); // حفظ lectureId
-                        setSelectedExam(null);
-                        return;
-                    }
-                } catch (scoreError) {
-                    console.log("No existing finished score found or error fetching score. Proceeding to check access.");
-                }
-
-                // 2. Check if student can access the exam
-                if (!accessCheck.canAccessExam) {
-                    // Student cannot access - show appropriate message
-                    let message = accessCheck.message || "لا يمكنك الدخول لهذا الامتحان حالياً";
-
-                    if (accessCheck.deadline) {
-                        const deadlineDate = new Date(accessCheck.deadline);
-                        const now = new Date();
-
-                        if (now > deadlineDate) {
-                            message = `عذراً، انتهى وقت الامتحان في ${deadlineDate.toLocaleDateString('ar-EG', {
-                                weekday: 'long',
-                                day: 'numeric',
-                                month: 'long',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            })}`;
-                        }
-                    }
-
-                    alert(message);
-                    return;
-                }
-
-                // 3. Student can access - check if it's via exception
-                if (accessCheck.extendedDeadline) {
-                    const extendedDate = new Date(accessCheck.extendedDeadline);
-                    console.log(`Student has deadline exception until: ${extendedDate.toISOString()}, Reason: ${accessCheck.reason}`);
-                }
-
-                // 4. Fallback: Check the exam object itself for finished status
-                const rawExamFinished = (exam as any).isFinished || (exam as any).IsFinished || (exam as any).IsFinsh || (exam as any).isFinsh;
-                const isExamFinished = rawExamFinished === true || rawExamFinished === "true" || rawExamFinished === 1;
-
-                if (isExamFinished && !accessCheck.extendedDeadline) {
-                    console.log("!!! EXAM ALREADY FINISHED (from exam endpoint) !!! Blocking entry and showing results.");
-                    try {
-                        const score = await StudentService.getExamScore(examId, Number(studentId));
-                        setSelectedScore(score);
-                        setCurrentLectureId((exam as any).lectureId || null); // حفظ lectureId
-                        setSelectedExam(null);
-                    } catch (scoreError) {
-                        console.error("Error fetching exam results", scoreError);
-                        alert("لقد أتممت هذا الامتحان مسبقاً، والمراجعة غير متاحة حالياً.");
+                    } else {
+                        // Normal case: First attempt or continuing unfinished attempt
+                        console.log("Entering exam (Normal flow)");
+                        setSelectedExam(exam);
+                        setSelectedScore(null);
                     }
                     return;
                 }
 
-                // الامتحان جاهز للعرض - تم جلبه بالكامل من getExamById
-                console.log("Entering exam view mode for exam ID:", examId);
-                setSelectedExam(exam);
-                setSelectedScore(null);
+                // Case B: Student DENIED access
+                // If they have finished before, show results. If not, show error.
+                if (isScoreFinished) {
+                    console.log("Access denied but exam finished -> Showing results.");
+                    setSelectedScore(existingScore);
+                    setCurrentLectureId((exam as any).lectureId || null);
+                    setSelectedExam(null);
+                    return;
+                }
+
+                // Case C: Denied and No Results -> Show Access Error
+                console.log("Access denied and no previous results.");
+                let message = accessCheck.message || "لا يمكنك الدخول لهذا الامتحان حالياً";
+
+                if (accessCheck.deadline) {
+                    const deadlineDate = new Date(accessCheck.deadline);
+                    const now = new Date();
+                    if (now > deadlineDate) {
+                        message = `عذراً، انتهى وقت الامتحان في ${deadlineDate.toLocaleDateString('ar-EG', {
+                            weekday: 'long',
+                            day: 'numeric',
+                            month: 'long',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}`;
+                    }
+                }
+                alert(message);
+
             } else {
                 alert("لا يوجد امتحان متاح أو حدث خطأ في التحميل");
             }

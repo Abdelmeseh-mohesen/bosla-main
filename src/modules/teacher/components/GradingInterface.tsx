@@ -174,7 +174,8 @@ export function GradingInterface({ result, onClose, onSave, isLoading }: Grading
         switch (type) {
             case 'MCQ': return 'اختيار من متعدد';
             case 'TrueFalse': return 'صح أو خطأ';
-            case 'Essay': return 'إجابة مقالية';
+            case 'Essay':
+            case 'TextAnswer': return 'إجابة مقالية';
             case 'Image':
             case 'ImageAnswer': return 'إجابة صورة';
             default: return type;
@@ -261,12 +262,12 @@ export function GradingInterface({ result, onClose, onSave, isLoading }: Grading
                             <div className="flex items-center gap-3">
                                 <div className={`px-4 py-2 rounded-xl text-sm font-black flex items-center gap-2 ${aType === 'MCQ' || aType === 'TrueFalse'
                                     ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                    : aType === 'Essay'
+                                    : (aType === 'Essay' || aType === 'TextAnswer')
                                         ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                                         : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
                                     }`}>
                                     {aType === 'MCQ' || aType === 'TrueFalse' ? <HelpCircle size={16} /> :
-                                        aType === 'Essay' ? <FileText size={16} /> : <ImageIcon size={16} />}
+                                        (aType === 'Essay' || aType === 'TextAnswer') ? <FileText size={16} /> : <ImageIcon size={16} />}
                                     {getAnswerTypeName(aType)}
                                 </div>
                                 <div className="px-4 py-2 rounded-xl text-sm font-black bg-brand-red/10 text-brand-red border border-brand-red/20">
@@ -360,7 +361,7 @@ export function GradingInterface({ result, onClose, onSave, isLoading }: Grading
                                 )}
 
                                 {/* Essay Answer */}
-                                {aType === "Essay" && (
+                                {(aType === "Essay" || aType === "TextAnswer") && (
                                     <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
                                         <p className="text-white font-bold text-lg leading-relaxed whitespace-pre-wrap text-right">
                                             {textAnswer || <span className="text-gray-500 italic">لم يكتب الطالب إجابة</span>}

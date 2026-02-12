@@ -37,7 +37,7 @@ export function CourseForm({ initialData, onSubmit, isLoading }: CourseFormProps
     const [stages, setStages] = React.useState<EducationStage[]>([]);
     const [isLoadingStages, setIsLoadingStages] = React.useState(true);
 
-    const { register, handleSubmit, setValue, formState: { errors } } = useForm<CourseFormValues>({
+    const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<CourseFormValues>({
         resolver: zodResolver(courseSchema) as any,
         defaultValues: initialData ? {
             title: initialData.title,
@@ -57,11 +57,25 @@ export function CourseForm({ initialData, onSubmit, isLoading }: CourseFormProps
         AuthService.getEducationStages()
             .then(res => {
                 if (res.succeeded) {
+                    // console.log("CourseForm: Loaded stages:", res.data); // Removed debug log
                     setStages(res.data);
                 }
             })
             .finally(() => setIsLoadingStages(false));
     }, []);
+
+    // Reset form when initialData changes
+    React.useEffect(() => {
+        if (initialData) {
+            reset({
+                title: initialData.title,
+                educationStageId: initialData.educationStageId || initialData.gradeYear,
+                price: initialData.price,
+                discountedPrice: initialData.discountedPrice
+            });
+            setPreview(initialData.courseImageUrl || null);
+        }
+    }, [initialData, reset]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];

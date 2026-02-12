@@ -1064,7 +1064,7 @@ function QuestionCard({
     // Edit Question State
     const [editContent, setEditContent] = useState(question.content);
     const [editScore, setEditScore] = useState(question.score);
-    const [editAnswerType, setEditAnswerType] = useState(question.answerType);
+    const [editAnswerType, setEditAnswerType] = useState(question.answerType === "Essay" ? "TextAnswer" : question.answerType);
     const [editCorrectByAssistant, setEditCorrectByAssistant] = useState(question.correctByAssistant);
     const [editFile, setEditFile] = useState<File | null>(null);
     const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
@@ -1118,7 +1118,7 @@ function QuestionCard({
                     <div className="flex items-center justify-end gap-3 mt-1">
                         <span className="text-[10px] font-bold text-gray-500 bg-white/5 px-2 py-0.5 rounded uppercase">{question.questionType}</span>
                         <span className="text-[10px] font-bold text-brand-red bg-brand-red/10 px-2 py-0.5 rounded">{question.score} درجة</span>
-                        {question.answerType !== "Essay" && question.answerType !== "Image" && question.answerType !== "ImageAnswer" && (
+                        {question.answerType !== "TextAnswer" && question.answerType !== "Essay" && question.answerType !== "Image" && question.answerType !== "ImageAnswer" && (
                             <span className="text-[10px] font-bold text-gray-400">• {question.options.length} اختيارات</span>
                         )}
                     </div>
@@ -1206,7 +1206,7 @@ function QuestionCard({
                                             className="w-full h-12 bg-[#06080a] border border-white/5 rounded-xl px-4 text-white text-right outline-none"
                                         >
                                             <option value="MCQ">اختيار من متعدد</option>
-                                            <option value="Essay">سؤال مقالي</option>
+                                            <option value="TextAnswer">سؤال مقالي</option>
                                             <option value="Image">سؤال بصورة</option>
                                         </select>
                                     </div>
@@ -1302,7 +1302,7 @@ function QuestionCard({
                     )}
 
                     {/* Options Content - Only for non-essay questions */}
-                    {question.answerType !== "Essay" && question.answerType !== "Image" && question.answerType !== "ImageAnswer" ? (
+                    {question.answerType !== "TextAnswer" && question.answerType !== "Essay" && question.answerType !== "Image" && question.answerType !== "ImageAnswer" ? (
                         <>
                             {/* Options List */}
                             <div className="space-y-4 mb-8">
@@ -1433,7 +1433,7 @@ function QuestionCard({
                     ) : (
                         <div className="p-10 bg-brand-red/5 rounded-3xl border border-dashed border-brand-red/20 text-center">
                             <p className="text-brand-red font-black text-lg">
-                                {question.answerType === "Essay" ? "سؤال مقالي: يتطلب إجابة مكتوبة من الطالب" : "سؤال بصورة: يتطلب رفع صورة من الطالب كإجابة"}
+                                {question.answerType === "TextAnswer" || question.answerType === "Essay" ? "سؤال مقالي: يتطلب إجابة مكتوبة من الطالب" : "سؤال بصورة: يتطلب رفع صورة من الطالب كإجابة"}
                             </p>
                             <p className="text-gray-500 font-bold mt-1 text-sm">لن يتم عرض خيارات لهذا النوع من الأسئلة</p>
                         </div>
@@ -2075,7 +2075,7 @@ function AddQuestionForm({ examId, lectureId, onAdd, isLoading, showToast, onPre
                                 className="w-full h-12 md:h-14 bg-[#0d1117] border border-white/5 rounded-xl px-4 text-white text-right outline-none focus:border-brand-red transition-all"
                             >
                                 <option value="MCQ">اختيار من متعدد</option>
-                                <option value="Essay">سؤال مقالي (نص)</option>
+                                <option value="TextAnswer">سؤال مقالي (نص)</option>
                                 <option value="Image">سؤال بصورة (رفع ملف)</option>
                             </select>
                         </div>

@@ -44,6 +44,7 @@ export default function SubscriptionsPage() {
     const { teacherId, isAssistant } = useTeacherAuth();
     const queryClient = useQueryClient();
     const [updatingId, setUpdatingId] = useState<number | null>(null);
+    const [bulkApprovingCourseId, setBulkApprovingCourseId] = useState<number | null>(null);
     const [filter, setFilter] = useState<SubscriptionStatus | "All">("All");
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set());
@@ -185,6 +186,33 @@ export default function SubscriptionsPage() {
             setToast({ message: error.response?.data?.message || "فشل تحديث الحالة", type: 'error' });
         } finally {
             setUpdatingId(null);
+        }
+    };
+
+    const handleApproveAll = async (courseId: number, subscriptions: CourseSubscription[]) => {
+        const pendingSubs = subscriptions.filter(s => s.status === "Pending");
+        if (pendingSubs.length === 0) return;
+
+        if (!confirm(`هل أنت متأكد من قبول جميع الاشتراكات المعلقة (${pendingSubs.length}) لهذا الكورس؟`)) return;
+
+        setBulkApprovingCourseId(courseId);
+        try {
+            // Process in parallel
+            const promises = pendingSubs.map(sub =>
+                TeacherService.updateSubscriptionStatus({
+                    id: sub.courseSubscriptionId,
+                    status: "Approved"
+                }).catch(err => ({ error: err, id: sub.courseSubscriptionId })) // Catch errors individually
+            );
+
+            await Promise.all(promises);
+
+            setToast({ message: "تمت معالجة جميع الاشتراكات بنجاح ✓", type: 'success' });
+            refetch();
+        } catch (error) {
+            setToast({ message: "حدث خطأ أثناء المعالجة الجماعية", type: 'error' });
+        } finally {
+            setBulkApprovingCourseId(null);
         }
     };
 
@@ -364,9 +392,9 @@ export default function SubscriptionsPage() {
                                     className="bg-[#0d1117] border border-white/5 rounded-2xl overflow-hidden transition-all hover:border-white/10"
                                 >
                                     {/* Course Header */}
-                                    <button
+                                    <div
                                         onClick={() => toggleCourse(group.courseId)}
-                                        className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-all"
+                                        className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-all cursor-pointer"
                                     >
                                         <div className="flex items-center gap-5">
                                             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-red to-brand-red/60 flex items-center justify-center text-white shadow-lg shadow-brand-red/20">
@@ -404,12 +432,31 @@ export default function SubscriptionsPage() {
                                                 </span>
                                             </div>
 
+                                            {/* Approve All Button */}
+                                            {group.pendingCount > 0 && (
+                                                <Button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleApproveAll(group.courseId, group.subscriptions);
+                                                    }}
+                                                    disabled={bulkApprovingCourseId === group.courseId}
+                                                    className="h-10 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-sm gap-2 shadow-lg shadow-green-600/20 mr-2"
+                                                >
+                                                    {bulkApprovingCourseId === group.courseId ? (
+                                                        <Loader2 size={16} className="animate-spin" />
+                                                    ) : (
+                                                        <Check size={16} />
+                                                    )}
+                                                    قبول الكل ({group.pendingCount})
+                                                </Button>
+                                            )}
+
                                             {/* Expand/Collapse Icon */}
                                             <div className={`p-3 rounded-xl bg-white/5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
                                                 <ChevronDown size={24} className="text-gray-400" />
                                             </div>
                                         </div>
-                                    </button>
+                                    </div>
 
                                     {/* Subscriptions List (Collapsible) */}
                                     {isExpanded && (
@@ -482,6 +529,23 @@ export default function SubscriptionsPage() {
                                                                         <>
                                                                             <X size={16} className="ml-1" />
                                                                             رفض
+                                                                        </>
+                                                                    )}
+                                                                </Button>
+                                                                <Button
+                                                                    onClick={() => handleStatusChange(subscription, "Pending")}
+                                                                    disabled={updatingId === subscription.courseSubscriptionId || subscription.status === "Pending"}
+                                                                    className={`h-10 px-5 rounded-xl font-bold text-sm transition-all ${subscription.status === "Pending"
+                                                                        ? "bg-yellow-500/20 text-yellow-500/50 cursor-not-allowed"
+                                                                        : "bg-yellow-500 hover:bg-yellow-600 text-white"
+                                                                        }`}
+                                                                >
+                                                                    {updatingId === subscription.courseSubscriptionId ? (
+                                                                        <Loader2 size={16} className="animate-spin" />
+                                                                    ) : (
+                                                                        <>
+                                                                            <Clock size={16} className="ml-1" />
+                                                                            انتظار
                                                                         </>
                                                                     )}
                                                                 </Button>

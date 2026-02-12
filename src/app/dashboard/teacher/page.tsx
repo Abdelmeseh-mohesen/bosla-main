@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { TeacherService } from "@/modules/teacher/services/teacher.service";
+import { AuthService } from "@/modules/auth/services/auth.service";
 import { useTeacherAuth } from "@/modules/teacher/hooks/use-teacher-auth";
 import { CourseCard } from "@/modules/teacher/components/CourseCard";
 import { CourseForm } from "@/modules/teacher/components/CourseForm";
@@ -89,6 +90,11 @@ export default function TeacherDashboardPage() {
         enabled: !!teacherId,
     });
 
+    const { data: stagesResponse } = useQuery({
+        queryKey: ["educationStages"],
+        queryFn: () => AuthService.getEducationStages(),
+    });
+
     const isLoading = isLoadingCourses || isLoadingLectures || isLoadingAssistants;
 
     // Process courses to include real lecture counts
@@ -98,7 +104,13 @@ export default function TeacherDashboardPage() {
             : Array.isArray(lecturesResponse) ? lecturesResponse : [];
 
         const count = allLectures.filter((l: any) => l.courseId === course.id).length;
-        return { ...course, lectureCount: count };
+
+        // Resolve stage name from fetched stages if available, otherwise fallback
+        const stage = (stagesResponse?.data || []).find(s => s.id === course.educationStageId);
+        // Fix: Prioritize the name coming from the Course API if it exists, as it's the source of truth
+        const stageName = course.educationStageName || (stage ? stage.name : `الصف ${course.gradeYear}`);
+
+        return { ...course, lectureCount: count, educationStageName: stageName };
     });
 
     const createMutation = useMutation({

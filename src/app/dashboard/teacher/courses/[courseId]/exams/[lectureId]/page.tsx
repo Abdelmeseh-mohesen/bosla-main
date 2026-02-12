@@ -15,7 +15,7 @@ export default function ExamPage() {
     const searchParams = useSearchParams();
     const { teacherId } = useTeacherAuth();
 
-    const courseId = Number(params.id);
+    const courseId = Number(params.courseId);
     const lectureId = Number(params.lectureId);
     const lectureName = searchParams.get("name") || "المحاضرة";
 

@@ -17,9 +17,10 @@ import { Course, Lecture, Material } from "@/modules/teacher/types/teacher.types
 
 export default function CourseDetailsPage() {
     const params = useParams();
+    console.log("CourseDetailsPage params:", params);
     const router = useRouter();
     const queryClient = useQueryClient();
-    const courseId = Number(params.id);
+    const courseId = Number(params.courseId);
     const { teacherId, isAssistant } = useTeacherAuth();
 
     const [modals, setModals] = useState({
@@ -30,7 +31,6 @@ export default function CourseDetailsPage() {
         viewer: false
     });
     const [activeLectureId, setActiveLectureId] = useState<number | null>(null);
-    const [activeLectureName, setActiveLectureName] = useState("");
     const [activeMaterial, setActiveMaterial] = useState<Material | null>(null);
     const [editingLecture, setEditingLecture] = useState<Lecture | null>(null); // المحاضرة المحددة للتعديل
 

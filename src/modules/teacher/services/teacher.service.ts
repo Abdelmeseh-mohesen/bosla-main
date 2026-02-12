@@ -150,6 +150,7 @@ export const TeacherService = {
         formData.append("Title", data.title);
         formData.append("TeacherId", data.teacherId.toString());
         formData.append("EducationStageId", data.educationStageId.toString());
+        formData.append("GradeYear", data.educationStageId.toString());
         formData.append("Price", data.price.toString());
         formData.append("DiscountedPrice", data.discountedPrice.toString());
 

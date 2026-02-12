@@ -16,6 +16,30 @@ export function TeacherEducationStagesView({
     onBack,
     onSelectStage
 }: TeacherEducationStagesViewProps) {
+    // Combine stages from explicit list and derived from courses
+    const allStages = React.useMemo(() => {
+        const uniqueStages = new Map<number, { id: number, educationStageName: string }>();
+
+        // 1. Add explicit stages
+        (teacher.teacherEducationStages || []).forEach(stage => {
+            uniqueStages.set(stage.id, { id: stage.id, educationStageName: stage.educationStageName });
+        });
+
+        // 2. Add stages derived from courses
+        if (teacher.courses) {
+            teacher.courses.forEach(course => {
+                if (course.educationStageId && !uniqueStages.has(course.educationStageId)) {
+                    uniqueStages.set(course.educationStageId, {
+                        id: course.educationStageId,
+                        educationStageName: course.educationStageName || "مرحلة غير معروفة"
+                    });
+                }
+            });
+        }
+
+        return Array.from(uniqueStages.values()).sort((a, b) => a.id - b.id);
+    }, [teacher]);
+
     return (
         <div className="space-y-10 animate-in slide-in-from-bottom-8 duration-700">
             {/* Header */}
@@ -55,12 +79,12 @@ export function TeacherEducationStagesView({
                         <span className="w-1.5 h-6 bg-brand-red rounded-full" />
                     </h3>
                     <p className="text-gray-500 font-bold text-sm mt-2">
-                        {teacher.teacherEducationStages.length} مرحلة دراسية متاحة
+                        {allStages.length} مرحلة دراسية متاحة
                     </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {teacher.teacherEducationStages.map((stage) => (
+                    {allStages.map((stage) => (
                         <button
                             key={stage.id}
                             onClick={() => onSelectStage(stage.id, stage.educationStageName)}
@@ -98,7 +122,7 @@ export function TeacherEducationStagesView({
                     ))}
                 </div>
 
-                {teacher.teacherEducationStages.length === 0 && (
+                {allStages.length === 0 && (
                     <div className="text-center py-16 bg-white/5 rounded-[2rem] border-2 border-dashed border-white/5">
                         <GraduationCap size={48} className="mx-auto text-gray-600 mb-4" />
                         <p className="text-xl font-bold text-gray-500">لا توجد مراحل دراسية متاحة</p>
