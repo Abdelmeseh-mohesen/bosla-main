@@ -1,410 +1,197 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Play, AlertCircle, Lock, Shield } from "lucide-react";
-import {
-    extractYoutubeVideoId,
-    buildSecureYoutubeEmbedUrl,
-    isValidYoutubeId
-} from "@/lib/youtube-utils";
+import React, { useEffect, useState } from "react";
+import { AlertCircle, Lock, Loader2 } from "lucide-react";
+import { extractYoutubeVideoId, buildSecureYoutubeEmbedUrl } from "@/lib/youtube-utils";
 
 interface SecureVideoPlayerProps {
-    videoUrl: string;
+    videoUrl: string; // Could be YouTube URL or HLS (.m3u8) or MP4
     title: string;
     isAuthenticated: boolean;
     onUnauthorized?: () => void;
-    /**
-     * User role, defaults to 'student' for strict security.
-     */
     role?: string;
+    studentName?: string;
+    studentId?: number;
 }
 
-/**
- * SecureVideoPlayer - مشغل فيديو آمن 100%
- * 
- * استراتيجية الحماية:
- * - الـ iframe محمي بطبقة overlay كاملة
- * - لا يمكن التفاعل مع الـ iframe مباشرة
- * - التحكم يتم عبر أزرار مخصصة
- * - منع جميع الطرق للوصول إلى يوتيوب أو مشاركة الفيديو
- */
 export function SecureVideoPlayer({
     videoUrl,
     title,
     isAuthenticated,
     onUnauthorized,
-    role = 'student'
+    role = 'student',
+    studentName,
+    studentId
 }: SecureVideoPlayerProps) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const iframeRef = useRef<HTMLIFrameElement>(null);
-    const [showInitialOverlay, setShowInitialOverlay] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [secureUrl, setSecureUrl] = useState<string | null>(null);
+    const [isYouTube, setIsYouTube] = useState(false);
 
-    // استخراج Video ID باستخدام الـ utility المركزية
-    const videoId = extractYoutubeVideoId(videoUrl);
+    // Watermark State
+    const [watermarkContent, setWatermarkContent] = useState<string>("");
+    const [watermarkPosition, setWatermarkPosition] = useState({ top: "20%", left: "20%" });
 
-    // 🔍 Debugging - سيساعد في معرفة المشكلة
-    React.useEffect(() => {
-        console.log("=== SecureVideoPlayer Debug ===");
-        console.log("videoUrl received:", videoUrl);
-        console.log("videoId extracted:", videoId);
-        console.log("isAuthenticated:", isAuthenticated);
-    }, [videoUrl, videoId, isAuthenticated]);
+    // 1. Prepare URL
+    useEffect(() => {
+        if (!videoUrl || !isAuthenticated) return;
+        setIsLoading(true);
 
-    // بناء رابط Embed آمن
-    const getSecureEmbedUrl = useCallback((autoplay: boolean = false): string => {
-        if (!videoId) return "";
-
-        try {
-            const embedUrl = buildSecureYoutubeEmbedUrl(videoId, {
-                autoplay,
-                showControls: true,   // ✅ إظهار controls يوتيوب للتحكم بالفيديو (تقديم/تأخير)
-                mute: autoplay,       // كتم الصوت عند التشغيل التلقائي
-                loop: false,
-                language: 'ar'
-            });
-            console.log("🔗 Secure Embed URL:", embedUrl);
-            return embedUrl;
-        } catch (error) {
-            console.error("خطأ في بناء رابط Embed:", error);
-            return "";
+        const videoId = extractYoutubeVideoId(videoUrl);
+        if (videoId) {
+            setIsYouTube(true);
+            try {
+                // Use strict student security options (no controls if desired, or limited)
+                // The teacher view had "showControls: true". User said "As it appeared to the teacher".
+                // So we will use showControls: true.
+                const embedUrl = buildSecureYoutubeEmbedUrl(videoId, {
+                    autoplay: false,
+                    showControls: true,
+                    mute: false,
+                    loop: false,
+                    language: 'ar',
+                    // extra security measures are internal to helper
+                });
+                setSecureUrl(embedUrl);
+            } catch (e) {
+                console.error(e);
+                setError("فشل تحميل الفيديو");
+            }
+        } else {
+            setIsYouTube(false);
+            setSecureUrl(videoUrl); // Fallback for MP4/HLS if not youtube, though Teacher view was YT only.
         }
-    }, [videoId]);
+        setIsLoading(false);
+    }, [videoUrl, isAuthenticated]);
 
-    // ===== حماية شاملة: منع اختصارات لوحة المفاتيح =====
+
+    // 2. Dynamic Watermark Logic
     useEffect(() => {
+        const updateWatermark = () => {
+            const time = new Date().toLocaleTimeString('ar-EG');
+            const info = `${studentName || 'Student'} | ${studentId || 'ID'} \n ${time}`;
+            setWatermarkContent(info);
+
+            const top = Math.floor(Math.random() * 60) + 20;
+            const left = Math.floor(Math.random() * 60) + 20;
+            setWatermarkPosition({ top: `${top}%`, left: `${left}%` });
+        };
+
+        updateWatermark();
+        const interval = setInterval(updateWatermark, 15000);
+        return () => clearInterval(interval);
+    }, [studentName, studentId]);
+
+
+    // 3. Security Event Listeners
+    useEffect(() => {
+        const preventDefault = (e: Event) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        };
+
         const handleKeyDown = (e: KeyboardEvent) => {
-            const key = e.key.toLowerCase();
-
-            // منع Ctrl+S (حفظ), Ctrl+C (نسخ), Ctrl+U (عرض المصدر), Ctrl+A (تحديد الكل), Ctrl+P (طباعة)
-            if (e.ctrlKey && ["s", "c", "u", "a", "p"].includes(key)) {
+            // Block common shortcuts
+            if (
+                e.key === 'F12' ||
+                (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+                (e.ctrlKey && (e.key === 's' || e.key === 'u' || e.key === 'p'))
+            ) {
                 e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }
-
-            // منع Ctrl+Shift+I (DevTools), Ctrl+Shift+J (Console), Ctrl+Shift+C (Inspect)
-            if (e.ctrlKey && e.shiftKey && ["i", "j", "c"].includes(key)) {
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }
-
-            // منع F12 (DevTools)
-            if (e.key === "F12") {
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-            }
-
-            // منع PrintScreen
-            if (e.key === "PrintScreen") {
-                e.preventDefault();
-                e.stopPropagation();
-                // محاولة مسح الـ clipboard
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText("");
-                }
-                return false;
             }
         };
 
-        document.addEventListener("keydown", handleKeyDown, true);
-        return () => document.removeEventListener("keydown", handleKeyDown, true);
-    }, []);
+        document.addEventListener('contextmenu', preventDefault);
+        document.addEventListener('keydown', handleKeyDown);
 
-    // ===== حماية شاملة: منع Right-click على الصفحة كلها =====
-    useEffect(() => {
-        const handleContextMenu = (e: MouseEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
+        return () => {
+            document.removeEventListener('contextmenu', preventDefault);
+            document.removeEventListener('keydown', handleKeyDown);
         };
-
-        document.addEventListener("contextmenu", handleContextMenu, true);
-        return () => document.removeEventListener("contextmenu", handleContextMenu, true);
     }, []);
 
-    // ===== حماية شاملة: منع السحب والإفلات (Drag & Drop) =====
-    useEffect(() => {
-        const handleDragStart = (e: DragEvent) => {
-            e.preventDefault();
-            return false;
-        };
-
-        document.addEventListener("dragstart", handleDragStart, true);
-        return () => document.removeEventListener("dragstart", handleDragStart, true);
-    }, []);
-
-    // ===== حماية شاملة: منع تحديد النص =====
-    useEffect(() => {
-        const handleSelectStart = (e: Event) => {
-            if (containerRef.current?.contains(e.target as Node)) {
-                e.preventDefault();
-                return false;
-            }
-        };
-
-        document.addEventListener("selectstart", handleSelectStart, true);
-        return () => document.removeEventListener("selectstart", handleSelectStart, true);
-    }, []);
-
-    // ===== حماية شاملة: منع النسخ =====
-    useEffect(() => {
-        const handleCopy = (e: ClipboardEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
-        };
-
-        document.addEventListener("copy", handleCopy, true);
-        return () => document.removeEventListener("copy", handleCopy, true);
-    }, []);
-
-    // إرسال أوامر إلى الـ iframe (محفوظة للاستخدام المستقبلي)
-    // const sendCommand = (command: string, args?: any) => {
-    //     if (iframeRef.current?.contentWindow) {
-    //         iframeRef.current.contentWindow.postMessage(
-    //             JSON.stringify({ event: "command", func: command, args: args || [] }),
-    //             "*"
-    //         );
-    //     }
-    // };
-
-    // تسجيل الدخول مطلوب
     if (!isAuthenticated) {
         return (
-            <div ref={containerRef} className="aspect-video w-full rounded-[2rem] bg-gradient-to-br from-gray-900 to-black border border-white/10 flex flex-col items-center justify-center gap-6 relative overflow-hidden" style={{ userSelect: "none" }} onContextMenu={(e) => e.preventDefault()}>
-                <div className="relative z-10 flex flex-col items-center gap-4">
-                    <div className="h-20 w-20 rounded-full bg-brand-red/20 flex items-center justify-center">
-                        <Lock size={40} className="text-brand-red" />
-                    </div>
-                    <h3 className="text-2xl font-black text-white">يجب تسجيل الدخول</h3>
-                    <p className="text-gray-400 font-medium text-center max-w-md">لمشاهدة هذا الفيديو، يُرجى تسجيل الدخول</p>
-                    {onUnauthorized && (
-                        <button onClick={onUnauthorized} className="mt-4 px-8 py-3 bg-brand-red text-white rounded-xl font-bold hover:bg-brand-red/90 transition-colors">
-                            تسجيل الدخول
-                        </button>
-                    )}
-                </div>
+            <div className="aspect-video w-full rounded-[2rem] bg-gray-900 flex flex-col items-center justify-center gap-4 text-white">
+                <Lock size={40} className="text-brand-red" />
+                <p>يجب تسجيل الدخول لمشاهدة الفيديو</p>
             </div>
         );
     }
 
-    // رابط غير صالح
-    if (!videoId) {
+    if (error) {
         return (
-            <div ref={containerRef} className="aspect-video w-full rounded-[2rem] bg-gradient-to-br from-gray-900 to-black border border-red-500/20 flex flex-col items-center justify-center gap-4" style={{ userSelect: "none" }}>
-                <AlertCircle size={48} className="text-red-500" />
-                <p className="text-red-400 font-bold">رابط الفيديو غير صالح</p>
+            <div className="aspect-video w-full rounded-[2rem] bg-gray-900 flex flex-col items-center justify-center gap-4 text-red-500">
+                <AlertCircle size={40} />
+                <p>{error}</p>
             </div>
         );
     }
-
-    const handleStartVideo = () => {
-        setShowInitialOverlay(false);
-    };
 
     return (
         <div
-            ref={containerRef}
-            className="aspect-video w-full rounded-[2rem] bg-black border border-white/10 relative overflow-hidden shadow-2xl group"
-            style={{ userSelect: "none" }}
+            className="group relative w-full aspect-video rounded-[2rem] overflow-hidden bg-black shadow-2xl border border-white/5"
             onContextMenu={(e) => e.preventDefault()}
+            style={{ userSelect: "none" }}
         >
-            {/* ===== Overlay البداية ===== */}
-            {showInitialOverlay && (
-                <div
-                    className="absolute inset-0 z-50 bg-gradient-to-br from-black/90 via-black/70 to-black/90 flex flex-col items-center justify-center cursor-pointer group/overlay"
-                    onClick={handleStartVideo}
-                >
-                    <div className="relative z-10 flex flex-col items-center gap-6">
-                        <div className="h-28 w-28 rounded-full bg-brand-red flex items-center justify-center shadow-2xl shadow-brand-red/40 group-hover/overlay:scale-110 transition-all duration-300">
-                            <Play size={50} className="text-white ml-2" fill="currentColor" />
-                        </div>
-                        <div className="text-center">
-                            <h3 className="text-2xl font-black text-white mb-2">{title}</h3>
-                            <p className="text-gray-400 font-medium">اضغط لبدء المشاهدة</p>
-                        </div>
-                    </div>
-                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-green-500/20 backdrop-blur-sm px-5 py-2.5 rounded-full border border-green-500/30">
-                        <Shield size={16} className="text-green-400" />
-                        <span className="text-sm font-bold text-green-300">مشاهدة آمنة داخل المنصة</span>
-                    </div>
+            {isLoading && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <Loader2 className="animate-spin text-brand-red w-10 h-10" />
                 </div>
             )}
 
-            {/* ===== iframe يوتيوب (مخفي تحت الـ overlay) ===== */}
-            {!showInitialOverlay && (
-                <iframe
-                    ref={iframeRef}
-                    src={getSecureEmbedUrl(true)}
-                    className="absolute inset-0 w-full h-full border-0"
-                    title="فيديو تعليمي"
-                    allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-                    sandbox="allow-scripts allow-same-origin"  // ✅ الحد الأدنى فقط - بدون popups
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
-                    style={{ pointerEvents: "auto" }} // ✅ السماح بالتفاعل مع أزرار التحكم
-                />
-            )}
-
-            {/* ===== نظام منع التشتت - إخفاء عناصر YouTube المشتتة ===== */}
-            {!showInitialOverlay && (
-                <>
-                    {/* ████████████████████████████████████████████████████████████████████ */}
-                    {/* طبقات حجب محسّنة - تغطي جميع عناصر YouTube ما عدا أزرار التحكم الأساسية */}
-                    {/* ████████████████████████████████████████████████████████████████████ */}
-
-                    {/* 🔒 طبقة علوية كاملة - تحجب: العنوان، المشاركة، المشاهدة لاحقاً، القائمة */}
-                    <div
-                        className="absolute top-0 left-0 right-0 z-[99999]"
-                        style={{
-                            height: '100px',
-                            background: 'linear-gradient(to bottom, #000000 0%, #000000 90%, transparent 100%)',
-                            pointerEvents: 'auto',
-                            cursor: 'default'
-                        }}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    >
-                        {/* محتوى مخصص - شعار المنصة */}
-                        <div className="absolute top-0 left-0 right-0 h-full flex items-center justify-between px-6 pointer-events-none">
-                            <div className="flex items-center gap-2 bg-green-500/30 px-4 py-2 rounded-full border border-green-500/50">
-                                <Shield size={16} className="text-green-400" />
-                                <span className="text-sm font-bold text-green-300">منصة بوصلة</span>
-                            </div>
-                            <span className="text-base font-bold text-white truncate max-w-[60%]">{title}</span>
-                        </div>
-                    </div>
-
-                    {/* 🔒 طبقة حجب الزاوية العلوية اليسرى - زر المشاركة والمشاهدة لاحقاً */}
-                    <div
-                        className="absolute top-0 left-0 z-[99999]"
-                        style={{
-                            width: '250px',
-                            height: '120px',
-                            background: 'linear-gradient(to bottom right, #000000 0%, #000000 50%, transparent 100%)',
-                            pointerEvents: 'auto',
-                            cursor: 'default'
-                        }}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    />
-
-                    {/* 🔒 حجب الزاوية اليسرى السفلى - شعار YouTube وأيقونة القناة */}
-                    <div
-                        className="absolute bottom-0 left-0 z-[99999]"
-                        style={{
-                            width: '200px',
-                            height: '90px',
-                            background: 'linear-gradient(to top right, #000000 0%, #000000 60%, transparent 100%)',
-                            pointerEvents: 'auto',
-                            cursor: 'default'
-                        }}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    />
-
-                    {/* 🔒 حجب الزاوية اليمنى السفلى - زر الإعدادات والإعلانات */}
-                    <div
-                        className="absolute bottom-0 right-0 z-[99999]"
-                        style={{
-                            width: '150px',
-                            height: '90px',
-                            background: 'linear-gradient(to top left, #000000 0%, #000000 60%, transparent 100%)',
-                            pointerEvents: 'auto',
-                            cursor: 'default'
-                        }}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    />
-
-                    {/* 🔒 طبقة حجب المنطقة الوسطى - تمنع النقر على الفيديو نفسه */}
-                    {/* لكن تترك شريط التحكم السفلي (آخر 48px) قابل للنقر */}
-                    <div
-                        className="absolute z-[99997]"
-                        style={{
-                            top: '90px',
-                            bottom: '48px',
-                            left: '20px',
-                            right: '20px',
-                            backgroundColor: 'transparent',
-                            pointerEvents: 'auto',
-                            cursor: 'default'
-                        }}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    />
-
-                    {/* 🔒 طبقة حجب الفيديوهات المقترحة - تظهر في نهاية الفيديو */}
-                    <div
-                        className="absolute z-[99998]"
-                        style={{
-                            top: '120px',
-                            bottom: '100px',
-                            left: '40px',
-                            right: '40px',
-                            backgroundColor: 'rgba(0,0,0,0.02)',
-                            pointerEvents: 'auto',
-                            cursor: 'default'
-                        }}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    />
-
-                    {/* 🔒 طبقة حماية إضافية - تغطي كامل الجوانب */}
-                    <div
-                        className="absolute inset-0 z-[99998]"
-                        style={{
-                            pointerEvents: 'none'
-                        }}
-                    >
-                        {/* الحافة اليسرى */}
+            {/* Video Container */}
+            {secureUrl && (
+                isYouTube ? (
+                    <>
+                        {/* Protection Overlays for Iframe (Teacher Style) */}
                         <div
-                            className="absolute top-0 bottom-0 left-0"
-                            style={{
-                                width: '20px',
-                                backgroundColor: 'rgba(0,0,0,0.01)',
-                                pointerEvents: 'auto',
-                                cursor: 'default'
-                            }}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            className="absolute top-0 left-0 right-0 h-[60px] z-30"
+                            style={{ background: "transparent" }}
+                            onClick={(e) => e.stopPropagation()}
                         />
 
-                        {/* الحافة اليمنى */}
-                        <div
-                            className="absolute top-0 bottom-0 right-0"
-                            style={{
-                                width: '20px',
-                                backgroundColor: 'rgba(0,0,0,0.01)',
-                                pointerEvents: 'auto',
-                                cursor: 'default'
-                            }}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        <iframe
+                            src={secureUrl}
+                            className="w-full h-full relative z-10 rounded-[2rem]"
+                            title={title}
+                            allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                            sandbox="allow-scripts allow-same-origin"
+                            referrerPolicy="strict-origin-when-cross-origin"
+                            style={{ border: 0 }}
+                            loading="lazy"
                         />
-                    </div>
 
-                    {/* شريط علامة منصة بوصلة في الأسفل */}
-                    <div
-                        className="absolute bottom-[2px] left-[200px] right-[150px] z-[99999] flex items-center justify-center"
-                        style={{
-                            height: '28px',
-                            backgroundColor: 'rgba(0,0,0,0.95)',
-                            pointerEvents: 'none',
-                            backdropFilter: 'blur(10px)'
-                        }}
-                    >
-                        <span className="text-xs font-bold text-brand-red">◆ منصة بوصلة التعليمية</span>
-                    </div>
-                </>
+                        <div
+                            className="absolute bottom-12 right-0 w-[100px] h-[40px] z-20"
+                            style={{ background: "transparent" }}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </>
+                ) : (
+                    // Simple Fallback for non-YT (e.g. MP4) if any. Teacher view didn't have this but we keep it safe.
+                    <video
+                        src={secureUrl}
+                        className="w-full h-full rounded-[2rem]"
+                        controls
+                        controlsList="nodownload"
+                    />
+                )
             )}
+
+            {/* Dynamic Watermark Overlay */}
+            <div
+                className="pointer-events-none absolute z-50 select-none opacity-40 mix-blend-difference whitespace-pre-line text-center font-black text-white/50 text-sm md:text-lg animate-pulse"
+                style={{
+                    top: watermarkPosition.top,
+                    left: watermarkPosition.left,
+                    transform: 'translate(-50%, -50%) rotate(-15deg)',
+                    textShadow: '0 0 5px rgba(0,0,0,0.5)'
+                }}
+            >
+                {watermarkContent}
+            </div>
         </div>
     );
 }
-
-export default SecureVideoPlayer;
-

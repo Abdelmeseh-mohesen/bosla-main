@@ -413,6 +413,8 @@ export default function StudentDashboardPage() {
                             course={selectedCourse}
                             onBack={() => setView('teacher-courses')}
                             onStartExam={handleStartExam}
+                            studentName={user?.firstName ? `${user.firstName} ${user.lastName || ''}` : 'Student'}
+                            studentId={numericStudentId || undefined}
                         />
                     )}
 

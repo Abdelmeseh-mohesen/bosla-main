@@ -84,4 +84,3 @@ export function VideoPlayer({ url, title = "معاينة الفيديو" }: Vide
 }
 
 export default VideoPlayer;
-

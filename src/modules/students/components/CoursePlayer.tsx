@@ -30,11 +30,13 @@ import { TeacherService } from "@/modules/teacher/services/teacher.service";
 interface CoursePlayerProps {
     course: TeacherCourse;
     onBack: () => void;
-    onStartExam: (examId: number, exam?: Exam) => void; // تم تحديثها لاستقبال examId والامتحان كاملاً (اختياري)
+    onStartExam: (examId: number, exam?: Exam) => void;
     role?: string;
+    studentName?: string;
+    studentId?: number;
 }
 
-export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: CoursePlayerProps) {
+export function CoursePlayer({ course, onBack, onStartExam, role = 'student', studentName, studentId }: CoursePlayerProps) {
     // Debug logs
     console.log("=== CoursePlayer Debug ===");
     console.log("Course:", course);
@@ -230,6 +232,8 @@ export function CoursePlayer({ course, onBack, onStartExam, role = 'student' }: 
                                     title={activeContent.title}
                                     isAuthenticated={true}
                                     role={role}
+                                    studentName={studentName}
+                                    studentId={studentId}
                                 />
                             ) : (
                                 // PDF Viewer
