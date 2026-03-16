@@ -463,9 +463,10 @@ export const AuthService = {
         return response.data;
     },
 
-    // Update existing teacher profile (for completing missing data)
     updateTeacherProfile: async (data: {
         TeacherId: number;
+        FirstName?: string;
+        LastName?: string;
         PhoneNumber?: string;
         FacebookUrl?: string;
         TelegramUrl?: string;
@@ -480,6 +481,8 @@ export const AuthService = {
 
         formData.append("TeacherId", data.TeacherId.toString());
 
+        if (data.FirstName) formData.append("FirstName", data.FirstName);
+        if (data.LastName) formData.append("LastName", data.LastName);
         if (data.PhoneNumber) formData.append("PhoneNumber", data.PhoneNumber);
         if (data.FacebookUrl) formData.append("FacebookUrl", data.FacebookUrl);
         if (data.TelegramUrl) formData.append("TelegramUrl", data.TelegramUrl);

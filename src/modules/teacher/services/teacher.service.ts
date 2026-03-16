@@ -27,7 +27,8 @@ import {
     CourseStudentScore,
     TeacherRevenue,
     RevenueCourse,
-
+    NonSubmittedStudentsResponse,
+    NonSubmittedStudent,
     RevenueStudent,
     ChangeExamVisibilityRequest
 } from "../types/teacher.types";
@@ -530,6 +531,7 @@ export const TeacherService = {
                 type: data.type || data.Type,
                 isVisible: data.isVisible ?? data.IsVisible ?? true,
                 isRandomized: data.isRandomized ?? data.IsRandomized ?? false,
+                isFree: data.isFree ?? data.IsFree ?? false,
                 // ترتيب الأسئلة حسب الـ id لضمان ظهورها بترتيب الإنشاء
                 questions: (data.questions || data.Questions || []).map((q: any) => {
                     // Log for debugging once
@@ -585,7 +587,8 @@ export const TeacherService = {
             durationInMinutes: data.durationInMinutes,
             type: data.type,
             isVisible: data.isVisible,
-            isRandomized: data.isRandomized
+            isRandomized: data.isRandomized,
+            isFree: data.isFree
         });
 
         try {
@@ -596,7 +599,8 @@ export const TeacherService = {
                 durationInMinutes: data.durationInMinutes,
                 type: data.type, // 1 = exam, 2 = homework
                 isVisible: data.isVisible,
-                isRandomized: data.isRandomized
+                isRandomized: data.isRandomized,
+                isFree: data.isFree
             });
 
             console.log("Create Exam Response:", response.data);
@@ -615,6 +619,7 @@ export const TeacherService = {
                 type: exam.type || exam.Type,
                 isVisible: exam.isVisible ?? exam.IsVisible ?? true,
                 isRandomized: exam.isRandomized ?? exam.IsRandomized ?? false,
+                isFree: exam.isFree ?? exam.IsFree ?? false,
                 questions: []
             };
             console.log("Normalized exam:", normalizedExam);
@@ -657,7 +662,7 @@ export const TeacherService = {
             lectureId: data.lectureId,
             deadline: data.deadline,
             durationInMinutes: data.durationInMinutes,
-            isFree: false, // إضافة هذا الحقل المطلوب من الـ API
+            isFree: data.isFree, // استخدام القيمة المختارة
             type: examType, // 1 = exam, 2 = homework (must be number)
             isRandomized: data.isRandomized
         };
@@ -680,6 +685,7 @@ export const TeacherService = {
             type: exam.type || exam.Type,
             isVisible: exam.isVisible ?? exam.IsVisible ?? true,
             isRandomized: exam.isRandomized ?? exam.IsRandomized ?? false,
+            isFree: exam.isFree ?? exam.IsFree ?? false,
             questions: []
         };
         return { ...response.data, data: normalizedExam };
@@ -893,6 +899,16 @@ export const TeacherService = {
 
     gradeExam: async (data: GradeExamRequest): Promise<ApiResponse<any>> => {
         const response = await apiClient.post<ApiResponse<any>>("/exams/grade", data);
+        return response.data;
+    },
+
+    correctAllExams: async (examId: number): Promise<ApiResponse<any>> => {
+        const response = await apiClient.post<ApiResponse<any>>(`/exams/${examId}/correct-all`);
+        return response.data;
+    },
+
+    getNonSubmittedStudents: async (examId: number, courseId: number): Promise<ApiResponse<NonSubmittedStudentsResponse>> => {
+        const response = await apiClient.get<ApiResponse<any>>(`/exams/${examId}/non-submitted-students?courseId=${courseId}`);
         return response.data;
     },
 

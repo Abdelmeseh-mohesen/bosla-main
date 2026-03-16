@@ -94,7 +94,8 @@ export function ExamResultReview({ result, onClose, lectureId }: ExamResultRevie
     );
 
     // حساب الأسئلة اللي في انتظار التصحيح (correctByAssistant = true)
-    const pendingGradingQuestions = studentAnswers.filter((a: any) =>
+    // إذا تم تصحيح الامتحان بالكامل (isGraded)، فلا يوجد أسئلة معلقة
+    const pendingGradingQuestions = result.isGraded ? [] : studentAnswers.filter((a: any) =>
         a.correctByAssistant === true || a.CorrectByAssistant === true
     );
     const pendingCount = pendingGradingQuestions.length;
@@ -104,10 +105,11 @@ export function ExamResultReview({ result, onClose, lectureId }: ExamResultRevie
         acc + (curr.maxScore || curr.MaxScore || 0), 0
     );
 
-    // حساب الأسئلة المصححة فعلياً (غير المعلقة للتصحيح اليدوي)
-    const gradedAnswers = studentAnswers.filter((a: any) =>
-        !(a.correctByAssistant === true || a.CorrectByAssistant === true)
-    );
+    // حساب الأسئلة المصححة فعلياً
+    // إذا تم التصحيح الكامل، كل الأسئلة تعتبر مصححة
+    const gradedAnswers = result.isGraded
+        ? studentAnswers
+        : studentAnswers.filter((a: any) => !(a.correctByAssistant === true || a.CorrectByAssistant === true));
 
     /**
      * دالة لحساب إذا كانت الإجابة صحيحة
@@ -118,7 +120,16 @@ export function ExamResultReview({ result, onClose, lectureId }: ExamResultRevie
         const selectedOptions = answer.selectedOptions || answer.SelectedOptions || [];
         const answerType = answer.answerType || answer.AnswerType || "";
 
-        // للأسئلة MCQ و TrueFalse: نحسب من selectedOptions
+        // إذا تم التصحيح، نستخدم isCorrect من الـ API مباشرة لكل الأنواع
+        if (result.isGraded) {
+            // أحياناً يكون pointsEarned موجود و isCorrect خطأ في الباك إند للأسئلة المقالية
+            // لكن للمقالي نعتمد على pointsEarned > 0 أو isCorrect
+            const points = answer.pointsEarned ?? answer.PointsEarned;
+            if (points !== null) return points > 0;
+            return answer.isCorrect === true || answer.IsCorrect === true;
+        }
+
+        // للأسئلة MCQ و TrueFalse: نحسب من selectedOptions إذا لم يكن مصححاً بعد
         if (answerType === "MCQ" || answerType === "TrueFalse") {
             if (selectedOptions.length === 0) return false;
 
@@ -135,13 +146,13 @@ export function ExamResultReview({ result, onClose, lectureId }: ExamResultRevie
         return answer.isCorrect === true || answer.IsCorrect === true;
     };
 
-    // حساب عدد الإجابات الصحيحة (من الأسئلة المصححة فقط)
+    // حساب عدد الإجابات الصحيحة
     const correctCount = gradedAnswers.filter((a: any) => isAnswerCorrect(a)).length;
 
     const wrongCount = gradedAnswers.length - correctCount;
     const totalCount = studentAnswers.length;
 
-    // حساب النسبة المئوية (بدون احتساب الأسئلة المعلقة)
+    // حساب النسبة المئوية
     const gradedMaxPoints = maxPossiblePoints - pendingPoints;
     const scorePercentage = gradedMaxPoints > 0 ? (studentPoints / gradedMaxPoints) * 100 : 0;
 
@@ -276,7 +287,7 @@ export function ExamResultReview({ result, onClose, lectureId }: ExamResultRevie
 
                     <div className="space-y-6">
                         {studentAnswers.map((answer: any, idx: number) => {
-                            const isPendingGrading = answer.correctByAssistant === true || answer.CorrectByAssistant === true;
+                            const isPendingGrading = !result.isGraded && (answer.correctByAssistant === true || answer.CorrectByAssistant === true);
                             const isCorrect = !isPendingGrading && isAnswerCorrect(answer);
                             const questionContent = answer.questionContent || answer.QuestionContent || "";
                             const options = answer.questionOptions || answer.QuestionOptions || [];

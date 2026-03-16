@@ -67,6 +67,7 @@ export default function ExamPage() {
                     <ExamManager
                         lectureId={lectureId}
                         lectureName={lectureName}
+                        courseId={courseId}
                     />
                 </div>
             </div>

@@ -34,6 +34,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ userId, onBack }
 
     const [editForm, setEditForm] = useState<UpdateStudentProfileRequest>({
         studentId: "",
+        firstName: "",
+        lastName: "",
         studentPhoneNumber: "",
         parentPhoneNumber: "",
         governorate: "",
@@ -54,7 +56,9 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ userId, onBack }
                 if (response.succeeded && response.data) {
                     setProfile(response.data);
                     setEditForm({
-                        studentId: response.data.studentId.toString(),
+                        studentId: response.data.userId || userId,
+                        firstName: response.data.firstName || "",
+                        lastName: response.data.lastName || "",
                         studentPhoneNumber: response.data.studentPhoneNumber || "",
                         parentPhoneNumber: response.data.parentPhoneNumber || "",
                         governorate: response.data.governorate || "",
@@ -83,6 +87,14 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ userId, onBack }
     };
 
     const handleSaveProfile = async () => {
+        if (!editForm.firstName || editForm.firstName.trim() === '') {
+            showToast("الرجاء إدخال الاسم الأول", "error");
+            return;
+        }
+        if (!editForm.lastName || editForm.lastName.trim() === '') {
+            showToast("الرجاء إدخال الاسم الأخير", "error");
+            return;
+        }
         if (!editForm.parentPhoneNumber || editForm.parentPhoneNumber.length < 11) {
             showToast("الرجاء إدخال رقم هاتف ولي الأمر صحيح", "error");
             return;
@@ -269,6 +281,20 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ userId, onBack }
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
+                        <InputField
+                            label="الاسم الأول"
+                            value={editForm.firstName}
+                            onChange={(v) => setEditForm(p => ({ ...p, firstName: v }))}
+                            placeholder="الاسم الأول"
+                            icon={<User size={16} />}
+                        />
+                        <InputField
+                            label="الاسم الأخير"
+                            value={editForm.lastName}
+                            onChange={(v) => setEditForm(p => ({ ...p, lastName: v }))}
+                            placeholder="الاسم الأخير"
+                            icon={<User size={16} />}
+                        />
                         <InputField
                             label="هاتف الطالب"
                             value={editForm.studentPhoneNumber}

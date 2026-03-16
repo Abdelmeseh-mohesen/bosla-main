@@ -242,8 +242,45 @@ export const StudentService = {
         return response.data;
     },
     getExamScore: async (examId: number, studentId: number): Promise<ExamScoreResponse> => {
-        const response = await apiClient.get<ApiResponse<ExamScoreResponse>>(`/exams/${examId}/students/${studentId}/score`);
-        return response.data.data;
+        const response = await apiClient.get<ApiResponse<any>>(`/exams/${examId}/students/${studentId}/score`);
+        const data = response.data.data;
+
+        if (!data) throw new Error("No score data found");
+
+        const normalized: ExamScoreResponse = {
+            examId: data.examId || data.ExamId || examId,
+            examTitle: data.examTitle || data.ExamTitle || "",
+            studentExamResultId: data.studentExamResultId || data.StudentExamResultId,
+            totalScore: data.totalScore ?? data.TotalScore ?? 0,
+            isFinished: data.isFinished ?? data.IsFinished ?? data.IsFinsh ?? data.isFinsh ?? false,
+            isGraded: data.isGraded ?? data.IsGraded ?? false,
+            submittedAt: data.submittedAt || data.SubmittedAt,
+            studentAnswers: (data.studentAnswers || data.StudentAnswers || []).map((a: any) => ({
+                studentAnswerId: a.studentAnswerId || a.StudentAnswerId,
+                questionId: a.questionId || a.QuestionId,
+                questionContent: a.questionContent || a.QuestionContent,
+                questionType: a.questionType || a.QuestionType,
+                answerType: a.answerType || a.AnswerType,
+                maxScore: a.maxScore || a.MaxScore,
+                correctByAssistant: a.correctByAssistant ?? a.CorrectByAssistant ?? false,
+                pointsEarned: a.pointsEarned ?? a.PointsEarned ?? null,
+                isCorrect: a.isCorrect ?? a.IsCorrect ?? false,
+                textAnswer: a.textAnswer || a.TextAnswer || null,
+                imageAnswerUrl: a.imageAnswerUrl || a.ImageAnswerUrl || null,
+                selectedOptions: a.selectedOptions || a.SelectedOptions || [],
+                questionOptions: (a.questionOptions || a.QuestionOptions || []).map((o: any) => ({
+                    optionId: o.optionId || o.OptionId,
+                    optionContent: o.optionContent || o.OptionContent,
+                    isCorrect: o.isCorrect ?? o.IsCorrect ?? false,
+                    isSelected: o.isSelected ?? o.IsSelected ?? false
+                })),
+                feedback: a.feedback || a.Feedback || "",
+                gradedByName: a.gradedByName || a.GradedByName || "",
+                correctAnswerImageUrl: a.correctAnswerImageUrl || a.CorrectAnswerImageUrl || null
+            }))
+        };
+
+        return normalized;
     },
     subscribeToCourse: async (data: SubscribeToCourseRequest): Promise<ApiResponse<any>> => {
         // Using PascalCase to match backend conventions seen in other endpoints
@@ -299,6 +336,8 @@ export const StudentService = {
         const formData = new FormData();
 
         formData.append('StudentId', data.studentId);
+        formData.append('FirstName', data.firstName || "");
+        formData.append('LastName', data.lastName || "");
         formData.append('StudentPhoneNumber', data.studentPhoneNumber || "");
         formData.append('ParentPhoneNumber', data.parentPhoneNumber || "");
         formData.append('Governorate', data.governorate || "");

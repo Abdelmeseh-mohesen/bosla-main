@@ -11,7 +11,7 @@ import { CourseScoresModal } from "@/modules/teacher/components/CourseScoresModa
 import { TeacherRevenueModal } from "@/modules/teacher/components/TeacherRevenueModal";
 import { Modal } from "@/shared/ui/modal";
 import { Button } from "@/shared/ui/button";
-import { Plus, BookOpen, LayoutDashboard, LogOut, AlertTriangle, Users, Bell, Wallet, ShieldCheck } from "lucide-react";
+import { Plus, BookOpen, LayoutDashboard, LogOut, AlertTriangle, Users, Bell, Wallet, ShieldCheck, User } from "lucide-react";
 import { Course, CourseStudentScore, TeacherRevenue } from "@/modules/teacher/types/teacher.types";
 import { apiClient } from "@/services/api-client";
 import { AssistantForm } from "@/modules/teacher/components/AssistantForm";
@@ -293,6 +293,17 @@ export default function TeacherDashboardPage() {
 
                         {!isAssistant && (
                             <>
+                                {/* Profile Button */}
+                                <Link href="/auth/complete-teacher-profile">
+                                    <Button
+                                        variant="outline"
+                                        className="h-14 px-6 rounded-2xl border-purple-500/20 bg-purple-500/5 hover:bg-purple-500/10 hover:border-purple-500/40 font-bold text-purple-400 flex-1 xl:flex-none transition-all duration-300 w-full xl:w-auto mt-4 xl:mt-0"
+                                    >
+                                        <User size={20} className="ml-2" />
+                                        إعدادات الحساب
+                                    </Button>
+                                </Link>
+
                                 {/* Revenue Button */}
                                 <Button
                                     onClick={handleViewRevenue}

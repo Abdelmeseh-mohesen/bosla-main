@@ -96,6 +96,7 @@ export interface Exam {
     type?: ExamType; // 1 = exam, 2 = homework
     isVisible?: boolean; // إظهار/إخفاء الامتحان للطلاب
     isRandomized?: boolean; // ترتيب الأسئلة عشوائي
+    isFree?: boolean; // امتحان مجاني
     questions: ExamQuestion[];
 }
 
@@ -107,6 +108,7 @@ export interface CreateExamRequest {
     type: ExamType; // 1 = exam, 2 = homework
     isVisible: boolean;
     isRandomized: boolean;
+    isFree: boolean;
 }
 
 // Edit API doesn't accept isVisible - only isRandomized
@@ -118,6 +120,7 @@ export interface EditExamRequest {
     durationInMinutes: number;
     type: ExamType;
     isRandomized: boolean;
+    isFree: boolean;
 }
 
 
@@ -332,4 +335,20 @@ export interface TeacherRevenue {
     courses: RevenueCourse[];
     totalRevenue: number;
     totalApprovedSubscriptions: number;
+}
+
+// Non Submitted Students
+export interface NonSubmittedStudent {
+    studentId: number;
+    studentName: string;
+    studentEmail: string;
+    studentPhone: string;
+    parentPhone: string;
+}
+
+export interface NonSubmittedStudentsResponse {
+    totalEnrolledStudents: number;
+    submittedCount: number;
+    nonSubmittedCount: number;
+    nonSubmittedStudents: NonSubmittedStudent[];
 }

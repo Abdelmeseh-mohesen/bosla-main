@@ -42,9 +42,10 @@ import { env } from "@/config/env";
 interface ExamManagerProps {
     lectureId: number;
     lectureName: string;
+    courseId: number;
 }
 
-export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
+export function ExamManager({ lectureId, lectureName, courseId }: ExamManagerProps) {
     const queryClient = useQueryClient();
     const [isCreatingExam, setIsCreatingExam] = useState(false);
     const [isEditingExam, setIsEditingExam] = useState(false);
@@ -55,6 +56,7 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
     const [examType, setExamType] = useState<1 | 2>(1); // 1 = exam, 2 = homework
     const [isVisible, setIsVisible] = useState(true); // إظهار الامتحان للطلاب
     const [isRandomized, setIsRandomized] = useState(false); // ترتيب الأسئلة عشوائي
+    const [isFree, setIsFree] = useState(false); // امتحان مجاني
     const [isViewingSubmissions, setIsViewingSubmissions] = useState(false);
     const [expandedQuestion, setExpandedQuestion] = useState<number | null>(null);
     const [showCalendar, setShowCalendar] = useState(false);
@@ -319,7 +321,8 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
                 deadline: deadlineDate.toISOString(),
                 durationInMinutes: finalDuration,
                 type: examType,
-                isRandomized
+                isRandomized,
+                isFree
             }, {
                 onSuccess: () => {
                     // Handle visibility change if it's different (or always update to be safe)
@@ -343,7 +346,8 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
                 durationInMinutes: finalDuration,
                 type: examType,
                 isVisible,
-                isRandomized
+                isRandomized,
+                isFree
             });
         }
     };
@@ -541,6 +545,23 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
                                     <div className="text-right">
                                         <p className={`font-black text-base ${isRandomized ? 'text-blue-500' : 'text-gray-400'}`}>توزيع عشوائي</p>
                                         <p className="text-[10px] text-gray-500 font-bold mt-0.5">تغيير ترتيب الأسئلة لكل طالب</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                onClick={() => setIsFree(!isFree)}
+                                className={`p-5 rounded-3xl border-2 cursor-pointer transition-all duration-500 group relative overflow-hidden ${isFree
+                                    ? 'bg-yellow-500/10 border-yellow-500/30 hover:border-yellow-500/50 shadow-lg shadow-yellow-500/5'
+                                    : 'bg-white/5 border-white/5 hover:border-white/10'
+                                    }`}
+                            >
+                                <div className="flex items-center justify-between relative z-10">
+                                    <div className={`w-12 h-7 rounded-full relative transition-all duration-500 ${isFree ? 'bg-yellow-500' : 'bg-gray-600'}`}>
+                                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-all duration-500 ${isFree ? 'right-1' : 'left-1'}`} />
+                                    </div>
+                                    <div className="text-right">
+                                        <p className={`font-black text-base ${isFree ? 'text-yellow-500' : 'text-gray-400'}`}>امتحان مجاني</p>
+                                        <p className="text-[10px] text-gray-500 font-bold mt-0.5">متاح لجميع الطلاب دون اشتراك</p>
                                     </div>
                                 </div>
                             </div>
@@ -842,6 +863,7 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
                                     setExamType(exam.type || 1);
                                     setIsVisible(exam.isVisible ?? true);
                                     setIsRandomized(exam.isRandomized ?? false);
+                                    setIsFree(exam.isFree ?? false);
                                     if (exam.deadline) {
                                         const date = new Date(exam.deadline);
                                         const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -913,6 +935,7 @@ export function ExamManager({ lectureId, lectureName }: ExamManagerProps) {
                     lectureId={lectureId}
                     examId={exam!.id}
                     lectureName={lectureName}
+                    courseId={courseId}
                     onBack={() => setIsViewingSubmissions(false)}
                 />
             ) : (

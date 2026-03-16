@@ -34,6 +34,8 @@ export default function CompleteTeacherProfilePage() {
 
     // Form state
     const [form, setForm] = useState({
+        firstName: "",
+        lastName: "",
         phoneNumber: "",
         whatsAppNumber: "",
         facebookUrl: "",
@@ -58,17 +60,32 @@ export default function CompleteTeacherProfilePage() {
             }
 
             // Get teacherId
-            const tId = user.teacherId || user.id;
-            if (tId) {
-                setTeacherId(typeof tId === 'number' ? tId : parseInt(tId));
+            const tId = user.teacherId || user.userId;
+            // Ensure tId is not a GUID strings
+            if (tId && (typeof tId === 'number' || (typeof tId === 'string' && !tId.includes('-')))) {
+                setTeacherId(typeof tId === 'number' ? tId : parseInt(tId, 10));
             } else {
-                // No teacherId, need to create profile first
-                router.push("/auth/complete-profile");
-                return;
+                // If it's a GUID, maybe teacher profile is incomplete or format is wrong
+                // Let's try to get it strictly from teacherId or userId if it exists as we expect
+                if (user.userId && typeof user.userId === 'number') {
+                    setTeacherId(user.userId);
+                } else if (user.userId && typeof user.userId === 'string' && !user.userId.includes('-')) {
+                    setTeacherId(parseInt(user.userId, 10));
+                } else {
+                    // No valid numeric teacherId found
+                    console.error("Invalid TeacherId format. Expected number, got:", tId);
+                    router.push("/auth/complete-profile");
+                    return;
+                }
             }
 
             // Pre-fill form with existing data
-            if (user.phoneNumber) setForm(prev => ({ ...prev, phoneNumber: user.phoneNumber }));
+            setForm(prev => ({ 
+                ...prev, 
+                firstName: user.firstName || "",
+                lastName: user.lastName || "",
+                phoneNumber: user.phoneNumber || ""
+            }));
         } else {
             router.push("/login");
         }
@@ -122,6 +139,8 @@ export default function CompleteTeacherProfilePage() {
         try {
             const response = await AuthService.updateTeacherProfile({
                 TeacherId: teacherId,
+                FirstName: form.firstName || undefined,
+                LastName: form.lastName || undefined,
                 PhoneNumber: form.phoneNumber || undefined,
                 WhatsAppNumber: form.whatsAppNumber || undefined,
                 FacebookUrl: form.facebookUrl || undefined,
@@ -266,6 +285,36 @@ export default function CompleteTeacherProfilePage() {
                                         {stage.name}
                                     </button>
                                 ))}
+                            </div>
+                        </div>
+
+                        {/* Name (First & Last) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-bold text-gray-400 flex items-center gap-2">
+                                    <User size={14} />
+                                    الاسم الأول
+                                </label>
+                                <input
+                                    type="text"
+                                    value={form.firstName}
+                                    onChange={(e) => setForm(p => ({ ...p, firstName: e.target.value }))}
+                                    className="w-full h-12 px-4 rounded-xl bg-white/5 border border-white/10 text-white focus:border-purple-500 focus:outline-none transition-colors"
+                                    placeholder="الاسم الأول"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-bold text-gray-400 flex items-center gap-2">
+                                    <User size={14} />
+                                    الاسم الأخير
+                                </label>
+                                <input
+                                    type="text"
+                                    value={form.lastName}
+                                    onChange={(e) => setForm(p => ({ ...p, lastName: e.target.value }))}
+                                    className="w-full h-12 px-4 rounded-xl bg-white/5 border border-white/10 text-white focus:border-purple-500 focus:outline-none transition-colors"
+                                    placeholder="الاسم الأخير"
+                                />
                             </div>
                         </div>
 

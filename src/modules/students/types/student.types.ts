@@ -199,6 +199,8 @@ export interface StudentProfile {
 
 export interface UpdateStudentProfileRequest {
     studentId: string;
+    firstName: string;
+    lastName: string;
     studentPhoneNumber: string;
     parentPhoneNumber: string;
     governorate: string;
